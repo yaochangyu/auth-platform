@@ -85,3 +85,20 @@ auth-platform/
 - **目錄變更觸發（Path-based Triggers）**：各子系統配置獨立的 CI/CD Pipeline，僅在自身目錄異動時觸發建置與部署。
 - **共用模組連動**：當 `packages/` 異動時，自動觸發相依服務之驗證與測試。
 - **獨立交付**：各 App 獨立產出部署單元（如 Docker Image 或靜態網站），互不影響。
+
+---
+
+## 七、身分認證流程與 Consent 邊界
+
+依據 [ADR 0004：OAuth 2.0 瀏覽器重定向機制與 Consent 責任邊界](file:///home/yao/projects/auth-platform/docs/adr/0004-oauth-redirection-and-consent-boundary.md)，本平台在身分認證、授權同意與跨子系統互動上嚴格貫徹以下機制：
+
+### 1. Consent（授權同意）之系統邊界與責任分工
+- **執行期授權同意（Grant Consent）**：全權歸屬於身分伺服器 **`identity-server` (`auth.1111.com.tw`)**。在 OAuth 2.0 Authorization Code Flow 中，由 Identity Server 渲染原生 Consent 頁面，展示客戶端請求之權限範疇（Scopes，如個人資料、Email 等），由會員於原生登入端點點選同意或拒絕。此階段直接與授權碼（Authorization Code）核發邊界綁定。
+- **事後授權管理與撤銷（Revoke Consent）**：全權歸屬於會員中心前台 **`member-web` (`member.1111.com.tw`)** 之「已連結應用程式（Connected Apps）」模組。會員可隨時檢視歷史授權清單、存取權限與授權時間，並可主動撤銷特定應用程式的存取授權。
+
+### 2. 302 瀏覽器重定向機制 (Redirection vs Direct API)
+客戶端（包含會員中心前台與外部第三方應用程式）與 `identity-server` 之間必須透過瀏覽器 302 重定向完成認證與授權，嚴格禁止透過 API 轉發憑據：
+- **零信任與憑據隔離**：業務前端或第三方 SPA 完全不接觸會員登入憑據，消除中間人竊聽與憑據外洩風險，落實 RFC 6749 精神與 OAuth 2.1 全面廢棄密碼模式（ROPC）之安全規範。
+- **第一方 Cookie 與無感單點登入 (Silent SSO)**：`identity-server` 維護自身作用域之 HttpOnly, SameSite=Lax, Secure 會話 Cookie。透過 302 重定向，瀏覽器自動附帶憑據驗證會話，已登入會員享有完全無感的流暢單點登入跳轉，無須重複輸入帳密。
+- **安全防護標準**：全平台強制套用 **Authorization Code + PKCE (Proof Key for Code Exchange)** 流程，防止授權碼遭跨站劫持或 Token 被惡意側錄。
+
