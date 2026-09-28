@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -9,46 +8,23 @@ using Reqnroll;
 namespace MemberApi.Tests.Steps;
 
 [Binding]
-public class HealthCheckSteps
+public class HealthCheckSteps(PostgreSqlTestBase testBase)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private readonly PostgreSqlTestBase _testBase = new();
+    private readonly PostgreSqlTestBase _testBase = testBase;
     private HttpResponseMessage _response = null!;
     private HealthResponse? _healthResponse;
-
-    [BeforeScenario]
-    public Task 啟動測試環境()
-    {
-        return this._testBase.StartAsync();
-    }
-
-    [AfterScenario]
-    public Task 停止測試環境()
-    {
-        return this._testBase.StopAsync();
-    }
-
-    [Given("PostgreSQL 測試容器已啟動且可連線")]
-    public void GivenPostgreSql測試容器已啟動且可連線()
-    {
-        Assert.NotNull(this._testBase.Client);
-    }
 
     [When("使用者呼叫 GET \\/health 端點")]
     public async Task When使用者呼叫Get健康檢查端點()
     {
         this._response = await this._testBase.Client.GetAsync("/health");
+        this._testBase.LastResponse = this._response;
         this._healthResponse = await this._response.Content.ReadFromJsonAsync<HealthResponse>(JsonOptions);
-    }
-
-    [Then("回應狀態碼應為 200")]
-    public void Then回應狀態碼應為200()
-    {
-        Assert.Equal(HttpStatusCode.OK, this._response.StatusCode);
     }
 
     [Then("回應內容的 status 欄位應為 \"Healthy\"")]

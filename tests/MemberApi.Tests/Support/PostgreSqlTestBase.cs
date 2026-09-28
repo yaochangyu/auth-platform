@@ -1,30 +1,24 @@
-using Testcontainers.PostgreSql;
-
 namespace MemberApi.Tests.Support;
 
 /// <summary>
-/// 以 Testcontainers 啟動真實 PostgreSQL 容器，並建立指向該容器的 WebApplicationFactory。
-/// 供各情境（Scenario）的 Step Definitions 於 BeforeScenario/AfterScenario 掛接。
+/// 每個情境（Scenario）建立指向共用 PostgreSQL 容器（見 TestRunHooks）的 WebApplicationFactory。
+/// 容器本身於整個 Test Run 只啟動一次，此類別只負責情境層級的測試伺服器生命週期。
 /// </summary>
 public class PostgreSqlTestBase
 {
-    private PostgreSqlContainer? _container;
     private MemberApiWebApplicationFactory? _factory;
 
     public HttpClient Client { get; private set; } = null!;
 
-    public async Task StartAsync()
+    public MemberApiWebApplicationFactory Factory => this._factory!;
+
+    public HttpResponseMessage? LastResponse { get; set; }
+
+    public Task StartAsync()
     {
-        this._container = new PostgreSqlBuilder("postgres:16-alpine")
-            .WithDatabase("member_api_test")
-            .WithUsername("postgres")
-            .WithPassword("postgres")
-            .Build();
-
-        await this._container.StartAsync();
-
-        this._factory = new MemberApiWebApplicationFactory(this._container.GetConnectionString());
+        this._factory = new MemberApiWebApplicationFactory(TestRunHooks.ConnectionString);
         this.Client = this._factory.CreateClient();
+        return Task.CompletedTask;
     }
 
     public async Task StopAsync()
@@ -34,11 +28,6 @@ public class PostgreSqlTestBase
         if (this._factory is not null)
         {
             await this._factory.DisposeAsync();
-        }
-
-        if (this._container is not null)
-        {
-            await this._container.DisposeAsync();
         }
     }
 }
