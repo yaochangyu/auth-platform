@@ -108,6 +108,14 @@ public class AuthController(
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
+        if (result.Outcome == LoginOutcome.MemberSuspended)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/member-suspended",
+                title: "會員帳號已被停權",
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
         var member = result.Member!;
         var claims = new List<Claim>
         {

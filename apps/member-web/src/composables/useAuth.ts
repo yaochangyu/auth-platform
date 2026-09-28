@@ -10,11 +10,13 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
+// module-level：所有元件共用同一份登入會話狀態
+const loginResult = ref<LoginResponse | null>(null)
+
 export function useAuth() {
   const isSubmitting = ref(false)
   const error = ref<ProblemDetails | null>(null)
   const result = ref<RegisterResponse | null>(null)
-  const loginResult = ref<LoginResponse | null>(null)
 
   async function register(payload: RegisterRequest) {
     isSubmitting.value = true
@@ -65,6 +67,15 @@ export function useAuth() {
     }
   }
 
+  // 安全關鍵：轉址一律使用後端回傳、已校驗過的 returnUrl，嚴禁直接採用前端未校驗的 query 字串。
+  async function loginAndRedirect(payload: LoginRequest) {
+    const ok = await login(payload)
+    if (ok && loginResult.value?.returnUrl) {
+      window.location.assign(loginResult.value.returnUrl)
+    }
+    return ok
+  }
+
   async function logout(): Promise<LogoutResponse | null> {
     const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
       method: 'POST',
@@ -78,5 +89,21 @@ export function useAuth() {
     return (await response.json()) as LogoutResponse
   }
 
-  return { isSubmitting, error, result, loginResult, register, login, logout }
+  async function logoutAndRedirect() {
+    await logout()
+    loginResult.value = null
+    window.location.assign('/login')
+  }
+
+  return {
+    isSubmitting,
+    error,
+    result,
+    loginResult,
+    register,
+    login,
+    loginAndRedirect,
+    logout,
+    logoutAndRedirect,
+  }
 }

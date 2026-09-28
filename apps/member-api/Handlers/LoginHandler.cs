@@ -20,6 +20,11 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
             return new LoginResult(LoginOutcome.MemberPending, null, member);
         }
 
+        if (member.Status == MemberStatus.Suspended)
+        {
+            return new LoginResult(LoginOutcome.MemberSuspended, null, member);
+        }
+
         var response = new LoginResponse(member.Id, member.Email, member.DisplayName, member.Status, request.ReturnUrl);
         return new LoginResult(LoginOutcome.Success, response, member);
     }

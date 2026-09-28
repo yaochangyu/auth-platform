@@ -33,6 +33,12 @@ public class LoginSteps(PostgreSqlTestBase testBase)
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Pending, password);
     }
 
+    [Given("系統已存在一筆狀態為 Suspended 的會員，Email 為 \"([^\"]*)\"，密碼為 \"([^\"]*)\"")]
+    public async Task Given系統已存在一筆狀態為Suspended的會員EmailPassword(string email, string password)
+    {
+        await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Suspended, password);
+    }
+
     [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 呼叫登入 API")]
     public async Task When使用者以EmailPassword呼叫登入Api(string email, string password)
     {

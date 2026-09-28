@@ -13,26 +13,16 @@ const form = reactive({
   password: '',
 })
 
-const { isSubmitting, error, loginResult, login, logout } = useAuth()
+const { isSubmitting, error, loginAndRedirect } = useAuth()
 
-async function onSubmit() {
+function onSubmit() {
   const returnUrl = typeof route.query.returnUrl === 'string' ? route.query.returnUrl : undefined
-  const ok = await login({ ...form, returnUrl })
-  if (ok && returnUrl) {
-    window.location.href = returnUrl
-  }
-}
-
-async function onLogout() {
-  await logout()
-  loginResult.value = null
-  form.email = ''
-  form.password = ''
+  loginAndRedirect({ ...form, returnUrl })
 }
 </script>
 
 <template>
-  <form v-if="!loginResult" class="space-y-4" @submit.prevent="onSubmit">
+  <form class="space-y-4" @submit.prevent="onSubmit">
     <div class="space-y-2">
       <Label for="email">Email</Label>
       <Input id="email" v-model="form.email" type="email" required />
@@ -53,11 +43,6 @@ async function onLogout() {
       還沒有帳號？前往註冊
     </RouterLink>
   </form>
-
-  <div v-else class="space-y-4">
-    <p class="text-card-foreground">歡迎回來，{{ loginResult.displayName }}</p>
-    <Button variant="outline" class="w-full" @click="onLogout">登出</Button>
-  </div>
 </template>
 
 <style scoped></style>

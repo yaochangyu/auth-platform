@@ -8,6 +8,7 @@ public enum LoginOutcome
     Success,
     InvalidCredentials,
     MemberPending,
+    MemberSuspended,
 }
 
 public record LoginResult(LoginOutcome Outcome, LoginResponse? Response, Member? Member);
