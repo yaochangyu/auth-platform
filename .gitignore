@@ -1,0 +1,38 @@
+# Local trackers and workspace state
+.issues/
+.omc/
+.scratch/
+
+# .NET & C#
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+
+# Node.js & Vue
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~
