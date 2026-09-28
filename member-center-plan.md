@@ -126,12 +126,12 @@
 
 > **開發準則**：本專案全程採用 BDD（行為驅動開發）方法，API 測試統一採用 **BDD + WebApplicationFactory + Testcontainers**。**測試案例撰寫完成後，必須先讓使用者檢視並確認審核，方可開始實作**。
 
-- [ ] **Phase 1: 規格先行 (API First)**
-  - [ ] 1.1 撰寫 OpenAPI 3.0 YAML 規格檔案 (`docs/specs/member-api-v1.yaml`)
-  - [ ] 1.2 定義註冊、登入之 Request/Response DTO 與 Schema
-  - [ ] 1.3 定義忘記密碼、重設密碼、變更密碼之 Request/Response DTO 與 Schema
-  - [ ] 1.4 定義 RFC 7807 錯誤格式規範（Validation & Business Error Details）
-  - [ ] 1.5 完成 OpenAPI 規格驗證與審查
+- [x] **Phase 1: 規格先行 (API First)**
+  - [x] 1.1 撰寫 OpenAPI 3.0 YAML 規格檔案 (`docs/specs/member-api-v1.yaml`)
+  - [x] 1.2 定義註冊、登入之 Request/Response DTO 與 Schema
+  - [x] 1.3 定義忘記密碼、重設密碼、變更密碼之 Request/Response DTO 與 Schema
+  - [x] 1.4 定義 RFC 7807 錯誤格式規範（Validation & Business Error Details）
+  - [x] 1.5 完成 OpenAPI 規格驗證與審查
 
 - [ ] **Phase 2: 後端基礎設施搭建 (ASP.NET Core)**
   - [ ] 2.1 建立 `apps/member-api` 解決方案與 Clean Architecture 專案結構

@@ -7,11 +7,15 @@
 
 ## 專案專屬開發規範（強制遵守）
 
-### 1. 測試開發規範
+### 1. 技能呼叫規範
+- **審核代碼**：審核代碼時**必須使用 `/code-review` skill**（雙軸審查：規格 Spec 與代碼標準 Standards）。
+- **探索需求**：探索需求時**必須使用 `/grill-with-doc` skill**，透過嚴格盤問與多面向探討完善規格。
+
+### 2. 測試開發規範
 - **API 測試範疇**：後端 API 的測試**只需要 BDD + WebApplicationFactory + Testcontainers**，以真實 PostgreSQL 容器進行情境整合測試，不撰寫非必要的孤立單元測試。
 - **強制審核點（人機確認）**：**測試案例（BDD Scenarios）編寫完成後，必須先讓使用者檢視並確認審核**，確認無誤後方可開始進入程式碼實作階段。
 
-### 2. 後端開發規範 (ASP.NET Core)
+### 3. 後端開發規範 (ASP.NET Core)
 - 參考標準範本：[`yaochangyu/api.template`](https://github.com/yaochangyu/api.template)。
 - **執行環境**：.NET 10 (LTS)，目標 Framework 為 `net10.0`。
 - **開發模式**：全專案嚴格採用 **API First**，先撰寫 OpenAPI 規格文件，由契約驅動前後端實作。
@@ -19,7 +23,7 @@
 - **資料庫**：PostgreSQL，搭配 EF Core 與 Migration 機制。
 - **身分驗證**：HttpOnly Cookie Authentication（主網域 `.1111.com.tw` 共享）。
 
-### 3. 前端開發規範 (Vue 3)
+### 4. 前端開發規範 (Vue 3)
 - 前端專案位於 `apps/member-web/`。
 - **強制套用 `vue-best-practices` 技能規範**：
   - Composition API + `<script setup lang="ts">`。

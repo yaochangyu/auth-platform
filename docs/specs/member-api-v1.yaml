@@ -1,0 +1,909 @@
+openapi: 3.0.3
+info:
+  title: Member Center API (會員中心 API)
+  description: |
+    會員中心 (Member Center) 領域服務 OpenAPI 3.0 規格文件。
+    負責管理平台自然人之會員身分識別、驗證憑據 (Credential)、註冊生命週期、認證會話 (Session Cookie) 以及已連結的應用程式 (Connected App) 授權存取。
+    
+    ### 規範遵守聲明
+    - **領域語言 (Ubiquitous Language)**：全篇嚴格遵守 `CONTEXT.md` 統一領域語言，消除概念混淆。
+    - **錯誤格式**：所有非 2xx/3xx 之錯誤回應全面符合 **RFC 7807 (Problem Details for HTTP APIs)**，Content-Type 為 `application/problem+json`。
+    - **會話架構**：採用 HttpOnly, Secure, SameSite, Domain: `.1111.com.tw` 之 Session Cookie 認證，並透過安全戳記 (Security Stamp) 實現即時跨裝置會話失效。
+  version: 1.0.0
+  contact:
+    name: 統一身分與授權平台團隊
+    url: https://auth.1111.com.tw
+  license:
+    name: Proprietary
+    url: https://www.1111.com.tw/terms
+
+servers:
+  - url: https://auth.1111.com.tw
+    description: 正式營運環境 (Production)
+  - url: https://auth-staging.1111.com.tw
+    description: 測試/預發環境 (Staging)
+
+tags:
+  - name: Health
+    description: 服務健康檢查與依賴組件探測
+  - name: Authentication
+    description: 會員認證與會員生命週期（註冊、信箱驗證、登入、登出、忘記密碼、重設密碼）
+  - name: Member Profile
+    description: 已登入會員之個人資料管理與密碼變更
+  - name: Connected Apps
+    description: 已授權存取之第三方應用程式 (Connected Apps) 檢視與權限撤銷
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: 檢查服務運作健康狀態
+      description: 回傳 API 服務與資料庫等相依元件的即時健康度檢查結果。
+      operationId: checkHealth
+      security: []
+      responses:
+        '200':
+          description: 服務健康正常運作中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '400':
+          description: 請求參數錯誤
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: 服務或相依資料庫異常，無法提供正常服務
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: 註冊新會員 (Register)
+      description: |
+        提交 Email、密碼與暱稱以建立新會員身分。
+        - 建立成功後，會員進入「待驗證 (Pending)」狀態。
+        - 系統同步在交易中建立驗證權杖 (Verification Token) 並寫入發信交易任務 (Outbox Message) 發送信箱啟用信。
+        - 若送出之 Email 過去已註冊但處於 Pending 狀態，系統將靜默重新寄送啟用信且不更動原憑據，並回傳一致的成功回應，防範會員狀態探測與惡意竄改。
+      operationId: registerMember
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 會員註冊成功，已建立待驗證會員 (Pending Member) 並派發驗證信件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: 請求參數驗證失敗（如 Email 格式不合規、密碼強度不足或確認密碼不一致）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '409':
+          description: 此 Email 已完成驗證並處於已啟用 (Active) 狀態，無法重複註冊
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      summary: 驗證啟用 Email (Verify Email)
+      description: |
+        攜帶單次有效的驗證權杖 (Verification Token) 啟用會員身分。
+        驗證通過後，會員狀態由待驗證 (Pending) 轉換為已啟用 (Active)。
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: 信箱驗證成功，會員狀態已轉為已啟用 (Active)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyEmailResponse'
+        '400':
+          description: 驗證權杖無效或格式錯誤
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '404':
+          description: 查無此驗證權杖
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '410':
+          description: 驗證權杖已過期或已遭使用
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: 會員登入 (Login)
+      description: |
+        驗證會員 Email 與認證憑據 (密碼)。
+        - 驗證成功後，於 Response Header 發行作用域為 `.1111.com.tw` 之 HttpOnly Session Cookie。
+        - 包含連續憑據錯誤防護：連續失敗 5 次將啟動 15 分鐘的暫時鎖定 (Lockout)。
+        - 未完成信箱驗證的待驗證會員 (Pending Member) 將被明確拒絕登入。
+        - 支援 `returnUrl` 轉址引導（自動防範開放重定向 Open Redirect 漏洞）。
+      operationId: loginMember
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登入成功，已發放 HttpOnly Session Cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: .AspNetCore.Cookies=CfDJ8...; domain=.1111.com.tw; path=/; secure; samesite=lax; httponly
+              description: 儲存會員會話識別與安全戳記 (Security Stamp) 之 Session Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: 請求格式錯誤或提供了非法的開放重定向目標 (Invalid Return URL)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '401':
+          description: 認證憑據錯誤（Email 或密碼不正確）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: 會員身分尚未啟用（信箱未驗證）或會員處於停權狀態
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '423':
+          description: 連續憑據錯誤達上限，會員已進入暫時鎖定 (Lockout) 狀態
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/LockoutProblemDetails'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: 會員登出 (Logout)
+      description: |
+        當前瀏覽器會話登出（清除該裝置之 Session Cookie，不影響其他裝置的有效會話）。
+        與密碼重設或變更時觸發的全域會話註銷（更新安全戳記 Security Stamp）作明確區隔。
+      operationId: logoutMember
+      security:
+        - SessionCookieAuth: []
+      responses:
+        '200':
+          description: 成功登出，已發出過期 Session Cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: .AspNetCore.Cookies=; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=.1111.com.tw; path=/; secure; samesite=lax; httponly
+              description: 清除瀏覽器端 Session Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          description: 未提供有效 Session Cookie 或會話已逾期失效
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: 申請忘記密碼 (Forgot Password)
+      description: |
+        輸入會員 Email 申請重設密碼驗證信。
+        - **隱私防護 (Privacy-Preserving)**：無論輸入的 Email 是否已註冊，一律回傳通用的成功回應，阻斷攻擊者枚舉探測平台會員清單。
+        - **權杖單一有效性**：若會員存在，既有尚未使用的重設密碼 Verification Token 即刻失效，僅最新派發的權杖有效。
+        - **頻率限制 (Rate Limit)**：同一個 Email 每次申請具備 60 秒冷卻間隔，防範信件派發服務被惡意濫用。
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: 重設密碼請求已受理。若信箱存在，系統將透過發信交易任務派送重設密碼信。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResponse'
+        '400':
+          description: Email 格式無效
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '429':
+          description: 請求頻率過高，尚未度過 60 秒冷卻間隔時間
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: 重設密碼 (Reset Password)
+      description: |
+        攜帶單次有效的驗證權杖 (Verification Token) 並設定全新密碼。
+        重設成功後：
+        1. 標記該 Verification Token 為已使用。
+        2. 會員之安全戳記 (Security Stamp) 立即重新生成更新，使所有既有裝置的歷史 Session Cookie 瞬間作廢。
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: 密碼重設成功，所有歷史登入會話已即刻失效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+        '400':
+          description: 請求參數錯誤、新密碼強度不足或確認密碼不一致
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '404':
+          description: 查無此驗證權杖
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '410':
+          description: 驗證權杖已過期或已遭使用
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/member/profile:
+    get:
+      tags:
+        - Member Profile
+      summary: 取得會員個人檔案 (Get Member Profile)
+      description: 檢視目前已登入會員的基本資訊、狀態與信箱驗證時間。
+      operationId: getMemberProfile
+      security:
+        - SessionCookieAuth: []
+      responses:
+        '200':
+          description: 成功取得會員個人檔案資料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberProfileResponse'
+        '401':
+          description: 未登入或會話已因安全戳記更新而失效
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/member/password:
+    put:
+      tags:
+        - Member Profile
+      summary: 變更會員密碼 (Change Password)
+      description: |
+        已登入狀態下驗證舊密碼並更新為新密碼。
+        密碼變更成功後：
+        1. 刷新會員之安全戳記 (Security Stamp)，使其他瀏覽器或裝置上的 Session 立即失效。
+        2. 重新發行當前連線之 Session Cookie，確保當前操作裝置維持登入。
+      operationId: changeMemberPassword
+      security:
+        - SessionCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: 密碼變更成功，已更新安全戳記並廢止其他歷史會話
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: .AspNetCore.Cookies=CfDJ8...; domain=.1111.com.tw; path=/; secure; samesite=lax; httponly
+              description: 攜帶最新安全戳記之新 Session Cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangePasswordResponse'
+        '400':
+          description: 輸入資料不符驗證規範（如新密碼強度不足或確認密碼不一致）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '401':
+          description: 目前舊密碼錯誤或未通過會話認證
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/member/connected-apps:
+    get:
+      tags:
+        - Connected Apps
+      summary: 查詢已連結的應用程式清單 (List Connected Apps)
+      description: 取得經由會員本人明確同意授權之所有第三方「已連結應用程式 (Connected Apps)」清單及其授權範疇。
+      operationId: listConnectedApps
+      security:
+        - SessionCookieAuth: []
+      responses:
+        '200':
+          description: 成功取得已連結應用程式清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectedAppListResponse'
+        '401':
+          description: 未提供有效 Session Cookie 或會話已逾期
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/member/connected-apps/{appId}:
+    delete:
+      tags:
+        - Connected Apps
+      summary: 撤銷已連結應用程式授權 (Revoke Connected App)
+      description: 會員主動解除/撤銷特定第三方應用程式的存取授權，防止該應用程式繼續代表會員存取資源。
+      operationId: revokeConnectedApp
+      security:
+        - SessionCookieAuth: []
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          description: 已連結應用程式的唯一識別碼 (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+      responses:
+        '204':
+          description: 授權撤銷成功，該第三方應用程式已無法存取會員資料
+        '401':
+          description: 未登入或會話已過期失效
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: 查無該已連結應用程式授權紀錄
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  securitySchemes:
+    SessionCookieAuth:
+      type: apiKey
+      in: cookie
+      name: .AspNetCore.Cookies
+      description: |
+        作用域限定於 `.1111.com.tw` 之 HttpOnly 安全會話 Cookie。
+        代表會員在瀏覽器中的有效登入會話，並包含 Security Stamp 驗證。
+
+  schemas:
+    MemberStatus:
+      type: string
+      description: 會員狀態 (Member Status) 生命週期
+      enum:
+        - Pending
+        - Active
+        - Suspended
+      example: Active
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 標準 HTTP API 錯誤回應模型
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: 識別問題類型的 URI 參考
+          example: "https://auth.1111.com.tw/errors/unauthorized"
+        title:
+          type: string
+          description: 簡短且人類可讀的問題類型摘要
+          example: "Unauthorized"
+        status:
+          type: integer
+          description: HTTP 狀態碼
+          example: 401
+        detail:
+          type: string
+          description: 針對本次具體問題發生的詳細說明
+          example: "憑據驗證失敗，請檢查 Email 與密碼是否正確。"
+        instance:
+          type: string
+          format: uri-reference
+          description: 發生問題的具體端點或資源 URI 參照
+          example: "/api/v1/auth/login"
+        traceId:
+          type: string
+          description: 系統端對端追蹤識別碼 (Correlation / Trace ID)
+          example: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              description: 欄位驗證錯誤清單，鍵值為欄位屬性名稱，內容為錯誤說明字串陣列
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              example:
+                email:
+                  - "Email 格式無效。"
+                password:
+                  - "密碼長度至少需 8 碼，且必須包含英文字母與數字。"
+
+    LockoutProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            failedLoginAttempts:
+              type: integer
+              description: 當前累積之連續憑據驗證失敗次數
+              example: 5
+            lockoutEndAt:
+              type: string
+              format: date-time
+              description: 暫時鎖定截止時間（鎖定 15 分鐘後解除）
+              example: "2026-09-28T16:00:00Z"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - checks
+      properties:
+        status:
+          type: string
+          description: 系統總體狀態
+          enum: [Healthy, Degraded, Unhealthy]
+          example: "Healthy"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-28T15:45:00Z"
+        version:
+          type: string
+          example: "1.0.0"
+        checks:
+          type: array
+          description: 各相依子系統與資料庫連線檢測狀態
+          items:
+            type: object
+            required:
+              - component
+              - status
+            properties:
+              component:
+                type: string
+                example: "PostgreSQL"
+              status:
+                type: string
+                enum: [Healthy, Unhealthy]
+                example: "Healthy"
+              latencyMs:
+                type: number
+                example: 12.5
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - confirmPassword
+        - displayName
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: 會員註冊電子信箱（平台唯一識別 Email 憑據）
+          example: "member@1111.com.tw"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 會員登入密碼（需符合強度規範）
+          example: "P@ssw0rd2026!"
+        confirmPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 確認密碼（需與密碼一致）
+          example: "P@ssw0rd2026!"
+        displayName:
+          type: string
+          maxLength: 50
+          description: 會員暱稱或顯示名稱
+          example: "王大明"
+
+    RegisterResponse:
+      type: object
+      required:
+        - memberId
+        - email
+        - status
+        - message
+      properties:
+        memberId:
+          type: string
+          format: uuid
+          description: 系統為會員派發之唯一識別碼
+          example: "a8098c1a-f86e-11da-bd1a-00112444be1e"
+        email:
+          type: string
+          format: email
+          example: "member@1111.com.tw"
+        status:
+          $ref: '#/components/schemas/MemberStatus'
+        message:
+          type: string
+          example: "註冊成功，請前往信箱點擊驗證連結啟用會員身分。"
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - verificationToken
+      properties:
+        verificationToken:
+          type: string
+          description: 於信件中派發之單次有效驗證權杖 (Verification Token)
+          example: "vtoken_8f3b2a1c9e4d5f6a7b8c9d0e1f2a3b4c"
+
+    VerifyEmailResponse:
+      type: object
+      required:
+        - memberId
+        - email
+        - status
+        - message
+      properties:
+        memberId:
+          type: string
+          format: uuid
+          example: "a8098c1a-f86e-11da-bd1a-00112444be1e"
+        email:
+          type: string
+          format: email
+          example: "member@1111.com.tw"
+        status:
+          $ref: '#/components/schemas/MemberStatus'
+        message:
+          type: string
+          example: "信箱驗證成功，會員身分已啟用，現在可登入使用。"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: 會員 Email
+          example: "member@1111.com.tw"
+        password:
+          type: string
+          format: password
+          description: 會員登入密碼
+          example: "P@ssw0rd2026!"
+        returnUrl:
+          type: string
+          nullable: true
+          description: 登入完成後目標導向網址（需為合法的平台內部位址以防範 Open Redirect）
+          example: "https://profile.1111.com.tw/dashboard"
+
+    LoginResponse:
+      type: object
+      required:
+        - memberId
+        - email
+        - displayName
+        - status
+      properties:
+        memberId:
+          type: string
+          format: uuid
+          example: "a8098c1a-f86e-11da-bd1a-00112444be1e"
+        email:
+          type: string
+          format: email
+          example: "member@1111.com.tw"
+        displayName:
+          type: string
+          example: "王大明"
+        status:
+          $ref: '#/components/schemas/MemberStatus'
+        returnUrl:
+          type: string
+          nullable: true
+          description: 經伺服器校驗後允許轉址之目標路徑
+          example: "https://profile.1111.com.tw/dashboard"
+
+    LogoutResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "已成功登出並註銷會話。"
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: 欲申請重設密碼之會員信箱
+          example: "member@1111.com.tw"
+
+    ForgotPasswordResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: 為防止會員枚舉之通用隱私回應訊息
+          example: "若該信箱已在平台註冊，系統將寄出重設密碼說明信件，請於 15 分鐘內完成重設。"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - verificationToken
+        - newPassword
+        - confirmPassword
+      properties:
+        verificationToken:
+          type: string
+          description: 重設密碼驗證權杖 (Verification Token)
+          example: "pwreset_9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 符合強度規範之新密碼
+          example: "N3wP@ssw0rd2026!"
+        confirmPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 確認新密碼（需與 newPassword 一致）
+          example: "N3wP@ssw0rd2026!"
+
+    ResetPasswordResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "密碼重設成功，所有歷史裝置之會話已立即失效，請使用新密碼重新登入。"
+
+    MemberProfileResponse:
+      type: object
+      required:
+        - id
+        - email
+        - displayName
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 會員識別碼
+          example: "a8098c1a-f86e-11da-bd1a-00112444be1e"
+        email:
+          type: string
+          format: email
+          description: 會員註冊信箱
+          example: "member@1111.com.tw"
+        displayName:
+          type: string
+          description: 會員暱稱或顯示名稱
+          example: "王大明"
+        status:
+          $ref: '#/components/schemas/MemberStatus'
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 信箱驗證啟用時間
+          example: "2026-09-28T15:30:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: 會員建立時間
+          example: "2026-09-28T15:20:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最後更新時間
+          example: "2026-09-28T15:30:00Z"
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+        - confirmPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          description: 當前舊密碼
+          example: "P@ssw0rd2026!"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 符合強度規範之新密碼
+          example: "BrandN3wP@ss2026!"
+        confirmPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: 確認新密碼（需與 newPassword 一致）
+          example: "BrandN3wP@ss2026!"
+
+    ChangePasswordResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "密碼變更成功，已更新安全戳記並廢止其他歷史登入會話。"
+
+    ConnectedAppDto:
+      type: object
+      required:
+        - appId
+        - appName
+        - appIdentifier
+        - scopes
+        - authorizedAt
+      properties:
+        appId:
+          type: string
+          format: uuid
+          description: 授權關係唯一識別碼
+          example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+        appName:
+          type: string
+          description: 已連結應用程式名稱
+          example: "1111 人力銀行履歷快易通"
+        appIdentifier:
+          type: string
+          description: 已連結應用程式公開識別碼
+          example: "app_resume_plus_001"
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: 應用程式圖示網址
+          example: "https://static.1111.com.tw/apps/resume-plus/logo.png"
+        scopes:
+          type: array
+          description: 經會員同意授權之權限範疇清單
+          items:
+            type: string
+          example: ["read:profile", "read:email"]
+        authorizedAt:
+          type: string
+          format: date-time
+          description: 會員初次授權時間
+          example: "2026-09-25T10:15:30Z"
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 應用程式最後存取時間
+          example: "2026-09-28T09:40:12Z"
+
+    ConnectedAppListResponse:
+      type: object
+      required:
+        - items
+        - totalCount
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectedAppDto'
+        totalCount:
+          type: integer
+          description: 已連結應用程式總數量
+          example: 1
