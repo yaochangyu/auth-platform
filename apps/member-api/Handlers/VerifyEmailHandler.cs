@@ -22,9 +22,13 @@ public class VerifyEmailHandler(IMemberRepository memberRepository, TimeProvider
             return new VerifyEmailResult(VerifyEmailOutcome.TokenExpiredOrUsed, null);
         }
 
-        token.UsedAt = now;
-
         var member = token.Member!;
+        if (member.Status != MemberStatus.Pending)
+        {
+            return new VerifyEmailResult(VerifyEmailOutcome.MemberNotPending, null);
+        }
+
+        token.UsedAt = now;
         member.Status = MemberStatus.Active;
 
         await memberRepository.SaveChangesAsync(cancellationToken);

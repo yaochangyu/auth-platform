@@ -3,6 +3,7 @@ using FluentValidation.Results;
 using MemberApi.Contracts;
 using MemberApi.Handlers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace MemberApi.Controllers;
 
@@ -23,7 +24,7 @@ public class AuthController(
         var validationResult = await registerValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return this.BadRequest(ToValidationProblem(validationResult, "請求參數驗證失敗"));
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
         }
 
         var result = await registerMemberHandler.RegisterAsync(request, cancellationToken);
@@ -42,13 +43,14 @@ public class AuthController(
     [ProducesResponseType(typeof(VerifyEmailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
     public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await verifyEmailValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return this.BadRequest(ToValidationProblem(validationResult, "驗證權杖格式錯誤"));
+            return this.ToValidationProblem(validationResult, "驗證權杖格式錯誤");
         }
 
         var result = await verifyEmailHandler.VerifyAsync(request, cancellationToken);
@@ -59,6 +61,10 @@ public class AuthController(
                 type: "https://auth.1111.com.tw/errors/verification-token-not-found",
                 title: "查無此驗證權杖",
                 statusCode: StatusCodes.Status404NotFound),
+            VerifyEmailOutcome.MemberNotPending => this.Problem(
+                type: "https://auth.1111.com.tw/errors/member-not-pending",
+                title: "會員目前狀態不允許進行信箱驗證",
+                statusCode: StatusCodes.Status409Conflict),
             _ => this.Problem(
                 type: "https://auth.1111.com.tw/errors/verification-token-expired",
                 title: "驗證權杖已過期或已遭使用",
@@ -66,18 +72,22 @@ public class AuthController(
         };
     }
 
-    private static ValidationProblemDetails ToValidationProblem(ValidationResult result, string title)
+    private ActionResult ToValidationProblem(ValidationResult result, string title)
     {
-        var errors = result.Errors
-            .GroupBy(error => ToCamelCase(error.PropertyName))
-            .ToDictionary(group => group.Key, group => group.Select(error => error.ErrorMessage).ToArray());
-
-        return new ValidationProblemDetails(errors)
+        var modelState = new ModelStateDictionary();
+        foreach (var error in result.Errors)
         {
-            Type = "https://auth.1111.com.tw/errors/validation-failed",
-            Title = title,
-            Status = StatusCodes.Status400BadRequest,
-        };
+            modelState.AddModelError(ToCamelCase(error.PropertyName), error.ErrorMessage);
+        }
+
+        var problemResult = (ObjectResult)this.ValidationProblem(modelState);
+        if (problemResult.Value is ValidationProblemDetails problemDetails)
+        {
+            problemDetails.Title = title;
+            problemDetails.Type = "https://auth.1111.com.tw/errors/validation-failed";
+        }
+
+        return problemResult;
     }
 
     private static string ToCamelCase(string value)
