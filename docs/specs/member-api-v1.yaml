@@ -4,7 +4,7 @@ info:
   description: |
     會員中心 (Member Center) 領域服務 OpenAPI 3.0 規格文件。
     負責管理平台自然人之會員身分識別、驗證憑據 (Credential)、註冊生命週期、認證會話 (Session Cookie) 以及已連結的應用程式 (Connected App) 授權存取。
-    
+
     ### 規範遵守聲明
     - **領域語言 (Ubiquitous Language)**：全篇嚴格遵守 `CONTEXT.md` 統一領域語言，消除概念混淆。
     - **錯誤格式**：所有非 2xx/3xx 之錯誤回應全面符合 **RFC 7807 (Problem Details for HTTP APIs)**，Content-Type 為 `application/problem+json`。

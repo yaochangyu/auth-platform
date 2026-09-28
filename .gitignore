@@ -12,6 +12,7 @@ obj/
 *.sln.docstates
 .vs/
 TestResults/
+*.feature.cs
 
 # Node.js & Vue
 node_modules/
