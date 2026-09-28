@@ -135,6 +135,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: 會員目前狀態非待驗證 (Pending)，無法進行信箱驗證
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '410':
           description: 驗證權杖已過期或已遭使用
           content:

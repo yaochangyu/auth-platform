@@ -42,23 +42,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     [Given("系統已存在一筆 Email 為 \"([^\"]*)\" 且狀態為 Pending 的會員")]
     public async Task Given系統已存在一筆EmailStatusPending的會員(string email)
     {
-        using var scope = testBase.Factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
-        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Member>>();
-
-        var member = new Member
-        {
-            Id = Guid.NewGuid(),
-            Email = email,
-            DisplayName = "測試會員",
-            PasswordHash = string.Empty,
-            Status = MemberStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        member.PasswordHash = hasher.HashPassword(member, "Original@Passw0rd1");
-        dbContext.Members.Add(member);
-        await dbContext.SaveChangesAsync();
-
+        var member = await this.SeedPendingMemberAsync(email);
         this._seededEmail = email;
         this._originalPasswordHash = member.PasswordHash;
     }
@@ -79,6 +63,12 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     public async Task Given系統已存在一筆已過期或已使用的驗證權杖(string token)
     {
         await this.SeedMemberWithTokenAsync("verify-expired@1111.com.tw", token, expired: true);
+    }
+
+    [Given("系統已存在一筆狀態為 Active 的會員及其尚未使用的有效驗證權杖 \"([^\"]*)\"")]
+    public async Task Given系統已存在一筆狀態為Active的會員及其尚未使用的有效驗證權杖(string token)
+    {
+        await this.SeedMemberWithTokenAsync("verify-active@1111.com.tw", token, expired: false, status: MemberStatus.Active);
     }
 
     [When("使用者攜帶驗證權杖 \"([^\"]*)\" 呼叫 Email 驗證 API")]
@@ -195,7 +185,10 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         }
     }
 
-    private async Task SeedMemberWithTokenAsync(string email, string token, bool expired)
+    private async Task<Member> SeedPendingMemberAsync(
+        string email,
+        MemberStatus status = MemberStatus.Pending,
+        string password = "Original@Passw0rd1")
     {
         using var scope = testBase.Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
@@ -207,11 +200,26 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
             Email = email,
             DisplayName = "測試會員",
             PasswordHash = string.Empty,
-            Status = MemberStatus.Pending,
+            Status = status,
             CreatedAt = DateTimeOffset.UtcNow,
         };
-        member.PasswordHash = hasher.HashPassword(member, "Original@Passw0rd1");
+        member.PasswordHash = hasher.HashPassword(member, password);
         dbContext.Members.Add(member);
+        await dbContext.SaveChangesAsync();
+
+        return member;
+    }
+
+    private async Task SeedMemberWithTokenAsync(
+        string email,
+        string token,
+        bool expired,
+        MemberStatus status = MemberStatus.Pending)
+    {
+        var member = await this.SeedPendingMemberAsync(email, status);
+
+        using var scope = testBase.Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
 
         var now = DateTimeOffset.UtcNow;
         dbContext.VerificationTokens.Add(new VerificationToken

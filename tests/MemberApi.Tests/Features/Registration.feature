@@ -59,3 +59,9 @@ Feature: 會員註冊與 Email 驗證啟用
     When 使用者攜帶驗證權杖 "expired-token" 呼叫 Email 驗證 API
     Then 回應狀態碼應為 410
     And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
+
+  Scenario: 已啟用狀態的會員嘗試再次驗證 Email 時回傳 409
+    Given 系統已存在一筆狀態為 Active 的會員及其尚未使用的有效驗證權杖 "active-member-token"
+    When 使用者攜帶驗證權杖 "active-member-token" 呼叫 Email 驗證 API
+    Then 回應狀態碼應為 409
+    And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
