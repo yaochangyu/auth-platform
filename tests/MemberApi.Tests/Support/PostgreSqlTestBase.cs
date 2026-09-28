@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Testing;
+
 namespace MemberApi.Tests.Support;
 
 /// <summary>
@@ -14,10 +17,15 @@ public class PostgreSqlTestBase
 
     public HttpResponseMessage? LastResponse { get; set; }
 
+    public ValidationProblemDetails? LastProblemDetails { get; set; }
+
     public Task StartAsync()
     {
         this._factory = new MemberApiWebApplicationFactory(TestRunHooks.ConnectionString);
-        this.Client = this._factory.CreateClient();
+
+        // ponytail: Domain=.1111.com.tw 的 Cookie 在 localhost 測試主機下不符合瀏覽器同源規則，
+        // 自動 CookieContainer 會靜默丟棄，改由 Steps 手動解析 Set-Cookie 標頭並帶入後續請求。
+        this.Client = this._factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         return Task.CompletedTask;
     }
 

@@ -7,7 +7,6 @@ using MemberApi.Entities;
 using MemberApi.Infrastructure.Persistence;
 using MemberApi.Security;
 using MemberApi.Tests.Support;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +27,6 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     private HttpResponseMessage _response = null!;
     private RegisterResponse? _registerResponse;
     private VerifyEmailResponse? _verifyEmailResponse;
-    private ValidationProblemDetails? _problemDetails;
     private string? _seededEmail;
     private string? _originalPasswordHash;
 
@@ -42,7 +40,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     [Given("系統已存在一筆 Email 為 \"([^\"]*)\" 且狀態為 Pending 的會員")]
     public async Task Given系統已存在一筆EmailStatusPending的會員(string email)
     {
-        var member = await this.SeedPendingMemberAsync(email);
+        var member = await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Pending);
         this._seededEmail = email;
         this._originalPasswordHash = member.PasswordHash;
     }
@@ -113,26 +111,11 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         await this.AssertOutboxMessageExistsAsync(this._seededEmail!);
     }
 
-    [Then("回應內容應為符合 RFC 7807 的驗證錯誤 Problem Details")]
-    public void Then回應內容應為符合Rfc7807的驗證錯誤ProblemDetails()
-    {
-        Assert.NotNull(this._problemDetails);
-        Assert.False(string.IsNullOrWhiteSpace(this._problemDetails!.Type));
-        Assert.False(string.IsNullOrWhiteSpace(this._problemDetails.Title));
-        Assert.Equal((int)this._response.StatusCode, this._problemDetails.Status);
-    }
-
-    [Then("回應內容應為符合 RFC 7807 的 Problem Details 錯誤")]
-    public void Then回應內容應為符合Rfc7807的ProblemDetails錯誤()
-    {
-        this.Then回應內容應為符合Rfc7807的驗證錯誤ProblemDetails();
-    }
-
     [Then("錯誤內容應包含 \"([^\"]*)\" 欄位的錯誤訊息")]
     public void Then錯誤內容應包含欄位的錯誤訊息(string field)
     {
-        Assert.NotNull(this._problemDetails);
-        Assert.True(this._problemDetails!.Errors.ContainsKey(field));
+        Assert.NotNull(testBase.LastProblemDetails);
+        Assert.True(testBase.LastProblemDetails!.Errors.ContainsKey(field));
     }
 
     [Then("該會員的密碼雜湊應維持原始值未被覆蓋")]
@@ -165,7 +148,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         }
         else
         {
-            this._problemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
         }
     }
 
@@ -181,33 +164,8 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         }
         else
         {
-            this._problemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
         }
-    }
-
-    private async Task<Member> SeedPendingMemberAsync(
-        string email,
-        MemberStatus status = MemberStatus.Pending,
-        string password = "Original@Passw0rd1")
-    {
-        using var scope = testBase.Factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
-        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Member>>();
-
-        var member = new Member
-        {
-            Id = Guid.NewGuid(),
-            Email = email,
-            DisplayName = "測試會員",
-            PasswordHash = string.Empty,
-            Status = status,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        member.PasswordHash = hasher.HashPassword(member, password);
-        dbContext.Members.Add(member);
-        await dbContext.SaveChangesAsync();
-
-        return member;
     }
 
     private async Task SeedMemberWithTokenAsync(
@@ -216,7 +174,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         bool expired,
         MemberStatus status = MemberStatus.Pending)
     {
-        var member = await this.SeedPendingMemberAsync(email, status);
+        var member = await MemberSeeder.SeedMemberAsync(testBase.Factory, email, status);
 
         using var scope = testBase.Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();

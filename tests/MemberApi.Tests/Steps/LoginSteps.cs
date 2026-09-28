@@ -1,0 +1,121 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using MemberApi.Contracts;
+using MemberApi.Entities;
+using MemberApi.Tests.Support;
+using Reqnroll;
+
+namespace MemberApi.Tests.Steps;
+
+[Binding]
+public class LoginSteps(PostgreSqlTestBase testBase)
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    private HttpResponseMessage _response = null!;
+    private LoginResponse? _loginResponse;
+    private string? _sessionCookie;
+
+    [Given("系統已存在一筆狀態為 Active 的會員，Email 為 \"([^\"]*)\"，密碼為 \"([^\"]*)\"")]
+    public async Task Given系統已存在一筆狀態為Active的會員EmailPassword(string email, string password)
+    {
+        await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
+    }
+
+    [Given("系統已存在一筆狀態為 Pending 的會員，Email 為 \"([^\"]*)\"，密碼為 \"([^\"]*)\"")]
+    public async Task Given系統已存在一筆狀態為Pending的會員EmailPassword(string email, string password)
+    {
+        await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Pending, password);
+    }
+
+    [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 呼叫登入 API")]
+    public async Task When使用者以EmailPassword呼叫登入Api(string email, string password)
+    {
+        await this.PostLoginAsync(email, password, null);
+    }
+
+    [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 並攜帶 returnUrl \"([^\"]*)\" 呼叫登入 API")]
+    public async Task When使用者以EmailPasswordReturnUrl呼叫登入Api(string email, string password, string returnUrl)
+    {
+        await this.PostLoginAsync(email, password, returnUrl);
+    }
+
+    [Then("回應標頭 Set-Cookie 應包含 \"([^\"]*)\"")]
+    public void Then回應標頭SetCookie應包含(string expectedFragment)
+    {
+        Assert.Contains(expectedFragment, this.GetSetCookieHeader(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Then("回應標頭 Set-Cookie 應包含過期時間 \"([^\"]*)\"")]
+    public void Then回應標頭SetCookie應包含過期時間(string expectedFragment)
+    {
+        Assert.Contains(expectedFragment, this.GetSetCookieHeader(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Then("回應不應包含 Set-Cookie 標頭")]
+    public void Then回應不應包含SetCookie標頭()
+    {
+        Assert.False(this._response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Then("回應內容的 returnUrl 應為 \"([^\"]*)\"")]
+    public void Then回應內容的ReturnUrl應為(string returnUrl)
+    {
+        Assert.NotNull(this._loginResponse);
+        Assert.Equal(returnUrl, this._loginResponse!.ReturnUrl);
+    }
+
+    [Given("使用者已成功登入並取得有效的 Session Cookie")]
+    public async Task Given使用者已成功登入並取得有效的SessionCookie()
+    {
+        const string email = "login-logout@1111.com.tw";
+        const string password = "P@ssw0rd2026!";
+        await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
+        await this.PostLoginAsync(email, password, null);
+        this._sessionCookie = this.GetSetCookieHeader().Split(';')[0].Trim();
+    }
+
+    [When("使用者攜帶該 Session Cookie 呼叫登出 API")]
+    public async Task When使用者攜帶該SessionCookie呼叫登出Api()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add("Cookie", this._sessionCookie);
+        this._response = await testBase.Client.SendAsync(request);
+        testBase.LastResponse = this._response;
+    }
+
+    [When("使用者未攜帶 Session Cookie 呼叫登出 API")]
+    public async Task When使用者未攜帶SessionCookie呼叫登出Api()
+    {
+        this._response = await testBase.Client.PostAsync("/api/v1/auth/logout", content: null);
+        testBase.LastResponse = this._response;
+        testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>(JsonOptions);
+    }
+
+    private async Task PostLoginAsync(string email, string password, string? returnUrl)
+    {
+        var request = new LoginRequest(email, password, returnUrl);
+        this._response = await testBase.Client.PostAsJsonAsync("/api/v1/auth/login", request);
+        testBase.LastResponse = this._response;
+
+        if (this._response.StatusCode == HttpStatusCode.OK)
+        {
+            this._loginResponse = await this._response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions);
+        }
+        else
+        {
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>(JsonOptions);
+        }
+    }
+
+    private string GetSetCookieHeader()
+    {
+        Assert.True(this._response.Headers.TryGetValues("Set-Cookie", out var values));
+        return string.Join("; ", values!);
+    }
+}

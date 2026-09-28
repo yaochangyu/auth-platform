@@ -1,7 +1,11 @@
+using System.Security.Claims;
 using FluentValidation;
 using FluentValidation.Results;
 using MemberApi.Contracts;
 using MemberApi.Handlers;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -12,8 +16,10 @@ namespace MemberApi.Controllers;
 public class AuthController(
     IRegisterMemberHandler registerMemberHandler,
     IVerifyEmailHandler verifyEmailHandler,
+    ILoginHandler loginHandler,
     IValidator<RegisterRequest> registerValidator,
-    IValidator<VerifyEmailRequest> verifyEmailValidator) : ControllerBase
+    IValidator<VerifyEmailRequest> verifyEmailValidator,
+    IValidator<LoginRequest> loginValidator) : ControllerBase
 {
     [HttpPost("register")]
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
@@ -70,6 +76,60 @@ public class AuthController(
                 title: "驗證權杖已過期或已遭使用",
                 statusCode: StatusCodes.Status410Gone),
         };
+    }
+
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = await loginValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
+        }
+
+        var result = await loginHandler.LoginAsync(request, cancellationToken);
+        if (result.Outcome == LoginOutcome.InvalidCredentials)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/invalid-credentials",
+                title: "Email 或密碼不正確",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        if (result.Outcome == LoginOutcome.MemberPending)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/member-not-active",
+                title: "會員身分尚未啟用，請先完成信箱驗證",
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var member = result.Member!;
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, member.Id.ToString()),
+            new(ClaimTypes.Email, member.Email),
+            new(ClaimTypes.Name, member.DisplayName),
+            new("status", member.Status.ToString()),
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await this.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+        return this.Ok(result.Response);
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    [ProducesResponseType(typeof(LogoutResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        await this.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return this.Ok(new LogoutResponse("已成功登出並註銷會話。"));
     }
 
     private ActionResult ToValidationProblem(ValidationResult result, string title)

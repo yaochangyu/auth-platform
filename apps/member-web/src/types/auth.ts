@@ -21,6 +21,24 @@ export interface VerifyEmailResponse {
   message: string
 }
 
+export interface LoginRequest {
+  email: string
+  password: string
+  returnUrl?: string | null
+}
+
+export interface LoginResponse {
+  memberId: string
+  email: string
+  displayName: string
+  status: MemberStatus
+  returnUrl?: string | null
+}
+
+export interface LogoutResponse {
+  message: string
+}
+
 export interface ProblemDetails {
   type: string
   title: string
