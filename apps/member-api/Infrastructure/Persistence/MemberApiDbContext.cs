@@ -20,7 +20,7 @@ public class MemberApiDbContext(DbContextOptions<MemberApiDbContext> options) : 
 
         modelBuilder.Entity<VerificationToken>(builder =>
         {
-            builder.HasIndex(token => token.Token).IsUnique();
+            builder.HasIndex(token => token.TokenHash).IsUnique();
             builder.HasOne(token => token.Member)
                 .WithMany()
                 .HasForeignKey(token => token.MemberId);

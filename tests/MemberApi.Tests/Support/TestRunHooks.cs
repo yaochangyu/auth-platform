@@ -26,6 +26,7 @@ public static class TestRunHooks
 
         var options = new DbContextOptionsBuilder<MemberApiDbContext>()
             .UseNpgsql(ConnectionString)
+            .UseSnakeCaseNamingConvention()
             .Options;
         await using var dbContext = new MemberApiDbContext(options);
         await dbContext.Database.MigrateAsync();

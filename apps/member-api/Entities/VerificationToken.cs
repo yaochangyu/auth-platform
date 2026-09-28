@@ -8,7 +8,7 @@ public class VerificationToken
 
     public Member? Member { get; set; }
 
-    public required string Token { get; set; }
+    public required string TokenHash { get; set; }
 
     public DateTimeOffset ExpiresAt { get; set; }
 

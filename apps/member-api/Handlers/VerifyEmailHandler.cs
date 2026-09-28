@@ -1,6 +1,7 @@
 using MemberApi.Contracts;
 using MemberApi.Entities;
 using MemberApi.Repositories;
+using MemberApi.Security;
 
 namespace MemberApi.Handlers;
 
@@ -8,7 +9,8 @@ public class VerifyEmailHandler(IMemberRepository memberRepository, TimeProvider
 {
     public async Task<VerifyEmailResult> VerifyAsync(VerifyEmailRequest request, CancellationToken cancellationToken)
     {
-        var token = await memberRepository.FindVerificationTokenAsync(request.VerificationToken, cancellationToken);
+        var tokenHash = VerificationTokenHasher.Hash(request.VerificationToken);
+        var token = await memberRepository.FindVerificationTokenByHashAsync(tokenHash, cancellationToken);
         if (token is null)
         {
             return new VerifyEmailResult(VerifyEmailOutcome.TokenNotFound, null);

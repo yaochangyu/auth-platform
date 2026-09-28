@@ -1,3 +1,4 @@
+using MemberApi.Email;
 using MemberApi.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,24 +22,43 @@ public class EmailDispatchWorker(IServiceScopeFactory scopeFactory, TimeProvider
     {
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
-
-        var pendingMessages = await dbContext.OutboxMessages
-            .Where(message => message.ProcessedAt == null)
-            .ToListAsync(cancellationToken);
-
-        if (pendingMessages.Count == 0)
-        {
-            return;
-        }
+        var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
 
         var now = timeProvider.GetUtcNow();
+        var pendingMessages = await dbContext.OutboxMessages
+            .Where(message => message.ProcessedAt == null && message.RetryCount < message.MaxRetries)
+            .ToListAsync(cancellationToken);
+
         foreach (var message in pendingMessages)
         {
-            // ponytail: 未串接真實 SMTP/SES/SendGrid，僅記錄並標記已處理；上線前補上實際寄信整合
-            logger.LogInformation("派發驗證信予 {ToEmail}：{Subject}", message.ToEmail, message.Subject);
-            message.ProcessedAt = now;
+            if (message.LastAttemptAt is not null && message.LastAttemptAt + Backoff(message.RetryCount) > now)
+            {
+                continue;
+            }
+
+            message.LastAttemptAt = now;
+            try
+            {
+                await emailSender.SendAsync(message.ToEmail, message.Subject, message.Body, cancellationToken);
+                message.ProcessedAt = now;
+                message.ErrorMessage = null;
+            }
+            catch (Exception ex)
+            {
+                message.RetryCount++;
+                message.ErrorMessage = ex.Message;
+                logger.LogWarning(ex, "派發信件至 {ToEmail} 失敗，第 {RetryCount} 次重試", message.ToEmail, message.RetryCount);
+            }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        if (pendingMessages.Count > 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static TimeSpan Backoff(int retryCount)
+    {
+        return TimeSpan.FromSeconds(Math.Pow(2, retryCount));
     }
 }

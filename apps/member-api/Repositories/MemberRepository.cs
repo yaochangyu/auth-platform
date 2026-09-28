@@ -11,11 +11,18 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
         return dbContext.Members.SingleOrDefaultAsync(member => member.Email == email, cancellationToken);
     }
 
-    public Task<VerificationToken?> FindVerificationTokenAsync(string token, CancellationToken cancellationToken)
+    public Task<VerificationToken?> FindVerificationTokenByHashAsync(string tokenHash, CancellationToken cancellationToken)
     {
         return dbContext.VerificationTokens
             .Include(verificationToken => verificationToken.Member)
-            .SingleOrDefaultAsync(verificationToken => verificationToken.Token == token, cancellationToken);
+            .SingleOrDefaultAsync(verificationToken => verificationToken.TokenHash == tokenHash, cancellationToken);
+    }
+
+    public Task<List<VerificationToken>> FindActiveVerificationTokensAsync(Guid memberId, CancellationToken cancellationToken)
+    {
+        return dbContext.VerificationTokens
+            .Where(token => token.MemberId == memberId && token.UsedAt == null)
+            .ToListAsync(cancellationToken);
     }
 
     public void AddMember(Member member)

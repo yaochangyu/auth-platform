@@ -13,4 +13,12 @@ public class OutboxMessage
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset? ProcessedAt { get; set; }
+
+    public int RetryCount { get; set; }
+
+    public int MaxRetries { get; set; } = 5;
+
+    public string? ErrorMessage { get; set; }
+
+    public DateTimeOffset? LastAttemptAt { get; set; }
 }

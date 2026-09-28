@@ -9,6 +9,7 @@ using MemberApi.Validators;
 using MemberApi.Workers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MemberApi.Email;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,7 +21,8 @@ builder.Services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator
 builder.Services.AddScoped<IValidator<VerifyEmailRequest>, VerifyEmailRequestValidator>();
 
 builder.Services.AddDbContext<MemberApiDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("MemberApiDb")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("MemberApiDb"))
+        .UseSnakeCaseNamingConvention());
 
 builder.Services.AddScoped<IHealthRepository, HealthRepository>();
 builder.Services.AddScoped<IHealthCheckHandler, HealthCheckHandler>();
@@ -28,6 +30,7 @@ builder.Services.AddScoped<IMemberRepository, MemberRepository>();
 builder.Services.AddScoped<IRegisterMemberHandler, RegisterMemberHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
+builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddHostedService<EmailDispatchWorker>();
 builder.Services.AddSingleton(TimeProvider.System);
 

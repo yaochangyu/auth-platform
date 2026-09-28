@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using MemberApi.Contracts;
 using MemberApi.Entities;
 using MemberApi.Infrastructure.Persistence;
+using MemberApi.Security;
 using MemberApi.Tests.Support;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -217,7 +218,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         {
             Id = Guid.NewGuid(),
             MemberId = member.Id,
-            Token = token,
+            TokenHash = VerificationTokenHasher.Hash(token),
             ExpiresAt = expired ? now.AddHours(-1) : now.AddHours(1),
             CreatedAt = now,
         });
