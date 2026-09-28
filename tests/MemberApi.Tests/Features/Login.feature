@@ -51,6 +51,7 @@ Feature: 會員登入、登出與 SSO 會話管理
     When 使用者以 Email "login-suspended@1111.com.tw" 密碼 "P@ssw0rd2026!" 呼叫登入 API
     Then 回應狀態碼應為 403
     And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
+    And 錯誤類型應為 "https://auth.1111.com.tw/errors/member-suspended"
     And 回應不應包含 Set-Cookie 標頭
 
   Scenario Outline: 密碼錯誤或會員不存在時登入失敗

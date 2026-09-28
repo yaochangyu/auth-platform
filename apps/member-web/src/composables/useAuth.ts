@@ -68,8 +68,10 @@ export function useAuth() {
   }
 
   // 安全關鍵：轉址一律使用後端回傳、已校驗過的 returnUrl，嚴禁直接採用前端未校驗的 query 字串。
-  async function loginAndRedirect(payload: LoginRequest) {
-    const ok = await login(payload)
+  // returnUrl 的讀取封裝在此，呼叫端（元件）不需要也不應該知道 query 參數的存在。
+  async function loginAndRedirect(credentials: Pick<LoginRequest, 'email' | 'password'>) {
+    const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') ?? undefined
+    const ok = await login({ ...credentials, returnUrl })
     if (ok && loginResult.value?.returnUrl) {
       window.location.assign(loginResult.value.returnUrl)
     }

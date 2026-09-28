@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-import { useRoute } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/composables/useAuth'
-
-const route = useRoute()
 
 const form = reactive({
   email: '',
@@ -16,8 +13,7 @@ const form = reactive({
 const { isSubmitting, error, loginAndRedirect } = useAuth()
 
 function onSubmit() {
-  const returnUrl = typeof route.query.returnUrl === 'string' ? route.query.returnUrl : undefined
-  loginAndRedirect({ ...form, returnUrl })
+  loginAndRedirect({ email: form.email, password: form.password })
 }
 </script>
 

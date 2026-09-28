@@ -39,4 +39,11 @@ public class CommonSteps(PostgreSqlTestBase testBase)
     {
         this.Then回應內容應為符合Rfc7807的驗證錯誤ProblemDetails();
     }
+
+    [Then("錯誤類型應為 \"([^\"]*)\"")]
+    public void Then錯誤類型應為(string expectedType)
+    {
+        Assert.NotNull(testBase.LastProblemDetails);
+        Assert.Equal(expectedType, testBase.LastProblemDetails!.Type);
+    }
 }
