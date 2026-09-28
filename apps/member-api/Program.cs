@@ -21,7 +21,8 @@ builder.Services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator
 builder.Services.AddScoped<IValidator<VerifyEmailRequest>, VerifyEmailRequestValidator>();
 
 builder.Services.AddDbContext<MemberApiDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("MemberApiDb"))
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
+                      ?? builder.Configuration.GetConnectionString("MemberApiDb"))
         .UseSnakeCaseNamingConvention());
 
 builder.Services.AddScoped<IHealthRepository, HealthRepository>();
