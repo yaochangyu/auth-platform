@@ -101,4 +101,3 @@ auth-platform/
 - **零信任與憑據隔離**：業務前端或第三方 SPA 完全不接觸會員登入憑據，消除中間人竊聽與憑據外洩風險，落實 RFC 6749 精神與 OAuth 2.1 全面廢棄密碼模式（ROPC）之安全規範。
 - **第一方 Cookie 與無感單點登入 (Silent SSO)**：`identity-server` 維護自身作用域之 HttpOnly, SameSite=Lax, Secure 會話 Cookie。透過 302 重定向，瀏覽器自動附帶憑據驗證會話，已登入會員享有完全無感的流暢單點登入跳轉，無須重複輸入帳密。
 - **安全防護標準**：全平台強制套用 **Authorization Code + PKCE (Proof Key for Code Exchange)** 流程，防止授權碼遭跨站劫持或 Token 被惡意側錄。
-
