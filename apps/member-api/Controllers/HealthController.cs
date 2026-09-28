@@ -18,6 +18,7 @@ public class HealthController(IHealthCheckHandler healthCheckHandler) : Controll
         if (result.Status == HealthStatus.Unhealthy)
         {
             return this.Problem(
+                type: "https://auth.1111.com.tw/errors/service-unavailable",
                 title: "服務或相依資料庫異常，無法提供正常服務",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }

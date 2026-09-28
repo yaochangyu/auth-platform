@@ -72,6 +72,6 @@ public class HealthCheckSteps
         Assert.NotNull(this._healthResponse);
         Assert.Contains(
             this._healthResponse!.Checks,
-            item => item.Component == "PostgreSQL" && item.Status == HealthStatus.Healthy);
+            item => item.Component == "PostgreSQL" && item.Status == HealthCheckStatus.Healthy);
     }
 }

@@ -7,7 +7,13 @@ public enum HealthStatus
     Unhealthy,
 }
 
-public record HealthCheckItem(string Component, HealthStatus Status, double? LatencyMs);
+public enum HealthCheckStatus
+{
+    Healthy,
+    Unhealthy,
+}
+
+public record HealthCheckItem(string Component, HealthCheckStatus Status, double? LatencyMs);
 
 public record HealthResponse(
     HealthStatus Status,
