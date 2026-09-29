@@ -122,6 +122,15 @@ public class OAuthClientSteps(DeveloperApiTestBase testBase)
         Assert.False((await applications.GetPropertiesAsync(application)).ContainsKey(ClientSecretSet.PropertyName));
     }
 
+    [Then("Auth Server 中專案 \"([^\"]*)\" 的 Client 是否允許 Client Credentials 應為 \"([^\"]*)\"")]
+    public async Task ThenAuthServerClientCredentials(string project, string allowed)
+    {
+        await using var scope = testBase.Factory.Services.CreateAsyncScope();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var application = (await applications.FindByClientIdAsync(this.ClientIdOf(project)))!;
+        Assert.Equal(allowed == "是", (await applications.GetPermissionsAsync(application)).Contains(Permissions.GrantTypes.ClientCredentials));
+    }
+
     [Then("Auth Server 中專案 \"([^\"]*)\" 的 Client 顯示名稱應為 \"([^\"]*)\"")]
     public async Task ThenAuthServer顯示名稱(string project, string expected)
     {

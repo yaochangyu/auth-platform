@@ -27,6 +27,10 @@
 - **單向雜湊存儲**：資料庫僅保存單向雜湊值（SHA-256），後端完全無法反解。
 - **平滑過渡輪替 (Graceful Rotation)**：支援雙金鑰並存過渡期（如 24 小時），待正式服務更新完成後再作廢舊密鑰，確保線上維運零斷線。
 
+> **API Secret 的保存方式（Issue #18 補充）**：HMAC 需要伺服器取回密鑰明文才能重算簽章，因此**無法只存單向雜湊**。
+> API Key 本身仍只存 SHA-256 雜湊；專供簽章的 API Secret（`as_…`）改以 ASP.NET Core Data Protection 加密保存，
+> 資料庫外洩但沒有金鑰環時無法還原。代價是 Data Protection 金鑰環必須持久化並在服務間一致（`Auth:DataProtectionKeyDirectory`）。
+
 ### 4. 統一整合 Server-to-Server (M2M) 鑑權機制
 管理平台同時納管對人的「OAuth Client」與對機器的「M2M 鑑權」，針對雲端無固定 IP 環境提供雙重防護：
 - **方案 A：OAuth 2.1 Client Credentials Grant**：

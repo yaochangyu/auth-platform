@@ -79,6 +79,7 @@ _避免使用_: RenewToken (續約權杖), LongLivedToken (長效權杖)
 
 **API Key (API 存取金鑰)**:
 用於伺服器對伺服器（Server-to-Server, M2M）無人介入環境之高熵靜態憑證，具備環境前綴（`ak_live_` / `ak_test_`）並以單向雜湊安全存儲於資料庫。
+發行時另附專供 HMAC 簽章使用的 API Secret（`as_…`）；API Key 只存單向雜湊，API Secret 因驗簽需要還原而以加密保存（見 ADR 0007）。
 _避免使用_: AccessKey (存取金鑰), AppSecret (應用機密), TokenString (權杖字串)
 
 **HMAC Request Signature (HMAC 請求簽章)**:

@@ -53,6 +53,15 @@ Feature: OAuth Client 設定與 Client Secret 雙金鑰平滑輪替
       | 產生 Client Secret  |
       | 作廢 Client Secret  |
 
+  Scenario Outline: 只有 Confidential Client 同步後具備 Client Credentials 授權方式
+    When 開發者 "Alice" 設定專案 "Alice-1" 的 OAuth Client：類型 "<類型>"、Redirect URIs "https://app.example.com/callback"、Post Logout URIs ""、範疇 "openid、profile"
+    Then Auth Server 中專案 "Alice-1" 的 Client 是否允許 Client Credentials 應為 "<允許>"
+
+    Examples:
+      | 類型         | 允許 |
+      | Public       | 否   |
+      | Confidential | 是   |
+
   Scenario: Public Client 不能發行 Client Secret
     When 開發者 "Alice" 為專案 "Alice-1" 產生 Client Secret
     Then 回應狀態碼應為 409

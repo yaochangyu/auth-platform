@@ -80,6 +80,7 @@ builder.Services.AddOpenIddict()
 
         options.AllowAuthorizationCodeFlow()
             .AllowRefreshTokenFlow()
+            .AllowClientCredentialsFlow()
             .RequireProofKeyForCodeExchange()
             .RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess, AuthScopes.DeveloperApi)
             .SetAuthorizationCodeLifetime(TimeSpan.FromMinutes(1))

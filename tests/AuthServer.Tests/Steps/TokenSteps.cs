@@ -26,6 +26,8 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
         Assert.False(string.IsNullOrEmpty(this._code));
     }
 
+    public bool ResponseHas(string property) => this._token.TryGetProperty(property, out _);
+
     public string InitialAccessToken { get; private set; } = string.Empty;
 
     public string AccessToken => this._token.GetProperty("access_token").GetString()!;
@@ -186,7 +188,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
             ["client_id"] = "member-web-spa",
         });
 
-    private async Task PostTokenAsync(Dictionary<string, string?> form)
+    public async Task PostTokenAsync(Dictionary<string, string?> form)
     {
         var content = new FormUrlEncodedContent(form.Where(pair => pair.Value is not null).Select(pair => new KeyValuePair<string, string>(pair.Key, pair.Value!)));
         testBase.LastResponse = await testBase.Client.PostAsync("/connect/token", content);

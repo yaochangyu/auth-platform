@@ -10,6 +10,8 @@ public class DeveloperApiDbContext(DbContextOptions<DeveloperApiDbContext> optio
 
     public DbSet<DeveloperApplication> Applications => this.Set<DeveloperApplication>();
 
+    public DbSet<ApiKey> ApiKeys => this.Set<ApiKey>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DeveloperApplication>(builder =>
@@ -17,6 +19,14 @@ public class DeveloperApiDbContext(DbContextOptions<DeveloperApiDbContext> optio
             builder.ToTable("developer_applications");
             builder.HasIndex(application => application.ClientId).IsUnique();
             builder.HasIndex(application => application.OwnerMemberId);
+        });
+
+        modelBuilder.Entity<ApiKey>(builder =>
+        {
+            builder.ToTable("developer_api_keys");
+            builder.HasIndex(key => key.KeyHash).IsUnique();
+            builder.HasIndex(key => key.ApplicationId);
+            builder.HasOne<DeveloperApplication>().WithMany().HasForeignKey(key => key.ApplicationId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

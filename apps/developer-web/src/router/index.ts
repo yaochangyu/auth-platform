@@ -10,6 +10,7 @@ export const router = createRouter({
     { path: '/apps', component: () => import('@/views/ApplicationListView.vue'), meta: { requiresAuth: true } },
     { path: '/apps/new', component: () => import('@/views/ApplicationCreateView.vue'), meta: { requiresAuth: true } },
     { path: '/apps/:applicationId/oauth', component: () => import('@/views/ApplicationOAuthView.vue'), meta: { requiresAuth: true } },
+    { path: '/apps/:applicationId/api-keys', component: () => import('@/views/ApplicationApiKeysView.vue'), meta: { requiresAuth: true } },
     { path: '/apps/:applicationId', component: () => import('@/views/ApplicationDetailView.vue'), meta: { requiresAuth: true } },
   ],
 })

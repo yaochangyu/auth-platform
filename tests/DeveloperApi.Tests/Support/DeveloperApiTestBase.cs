@@ -58,8 +58,13 @@ public class DeveloperApiTestBase
         }
 
         this.LastResponse = await this.Client.SendAsync(request);
-        this.LastBodyText = await this.LastResponse.Content.ReadAsStringAsync();
-        this.LastBody = this.LastBodyText.Length == 0 ? default : JsonSerializer.Deserialize<JsonElement>(this.LastBodyText);
+        this.SetLastBody(await this.LastResponse.Content.ReadAsStringAsync());
+    }
+
+    public void SetLastBody(string text)
+    {
+        this.LastBodyText = text;
+        this.LastBody = text.Length == 0 ? default : JsonSerializer.Deserialize<JsonElement>(text);
     }
 
     public async Task StopAsync()

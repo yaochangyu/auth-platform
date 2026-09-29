@@ -21,6 +21,10 @@ servers:
 tags:
   - name: Applications
     description: 應用專案（Application）生命週期管理
+  - name: API Keys
+    description: Server-to-Server（M2M）API Key 的發行與撤銷
+  - name: M2M
+    description: 以 API Key + HMAC 簽章呼叫的 Server-to-Server 端點
   - name: OAuth Client
     description: 應用專案的 OAuth 2.1 Client 設定與 Client Secret 生命週期
 
@@ -252,8 +256,145 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /api/v1/applications/{applicationId}/api-keys:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [API Keys]
+      summary: 取得應用專案的 API Key 清單
+      description: 只回傳前綴等摘要，不含 API Key 與 API Secret 明文。
+      operationId: listApiKeys
+      responses:
+        '200':
+          description: API Key 清單與可綁定的範疇
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [API Keys]
+      summary: 發行 API Key
+      description: |
+        產生環境前綴的 API Key（`ak_live_…` / `ak_test_…`）與專供 HMAC 簽章使用的 API Secret（`as_…`）。
+        兩者明文只在此回應出現一次（`Cache-Control: no-store`）。資料庫只存 API Key 的 SHA-256 雜湊與辨識用前綴；
+        API Secret 因伺服器需要還原才能重算簽章，以 Data Protection 加密保存。
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyRequest'
+      responses:
+        '201':
+          description: 發行成功
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuedApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/applications/{applicationId}/api-keys/{keyId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [API Keys]
+      summary: 撤銷 API Key
+      description: 立即失效。找不到或已撤銷回 `404`。
+      operationId: revokeApiKey
+      responses:
+        '204':
+          description: 已撤銷
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/m2m/echo:
+    post:
+      tags: [M2M]
+      summary: Server-to-Server 連線檢查
+      description: |
+        以 API Key + HMAC 簽章驗證（不使用 Bearer Token），需要 `profile` 範疇。讓後端服務整合時確認金鑰與簽章計算是否正確。
+
+        **簽章方式**
+        1. 待簽字串（以 `\n` 串接）：`METHOD` `\n` `PATH_AND_QUERY` `\n` `TIMESTAMP` `\n` `SHA256_HEX(BODY)`。
+           - `METHOD` 為大寫；`PATH_AND_QUERY` 為實際送出的路徑與查詢字串（查詢字串也受保護）；
+             `TIMESTAMP` 為 Unix 秒；`SHA256_HEX(BODY)` 為 Body 位元組的 SHA-256（小寫 16 進位，空 Body 也要計算）。
+        2. `X-Signature` = 以 API Secret 對待簽字串做 HMAC-SHA256，取小寫 16 進位。
+        3. 時間戳記與伺服器時間差超過 ±5 分鐘一律拒絕（防重放）。
+
+        **注意事項**
+        - `PATH_AND_QUERY` 中的路徑以伺服器解碼後的形式為準（例如 `/` 不要寫成 `%2F`），查詢字串則為原樣送出的內容。
+        - Body 上限 1 MB，超過一律拒絕。
+        - 已知限制：在 ±5 分鐘視窗內，完全相同的請求可被重送（沒有 nonce 快取）。需要嚴格一次性的操作，請由業務端自行以冪等鍵處理。
+
+        驗證失敗（金鑰不存在／過期／撤銷、簽章不符、時間戳記無效、缺少標頭）一律回 `401`，不說明是哪一項；金鑰有效但缺少範疇回 `403`。
+      operationId: m2mEcho
+      security:
+        - hmacSignature: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 驗證成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2mEchoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
 components:
   securitySchemes:
+    hmacSignature:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        API Key 放在 `X-Api-Key`，另需帶 `X-Timestamp`（Unix 秒）與 `X-Signature`（HMAC-SHA256，見 `/api/v1/m2m/echo` 的簽章方式）。
     bearerAuth:
       type: http
       scheme: bearer
@@ -438,6 +579,119 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    ApiKeyRequest:
+      type: object
+      required: [name, environment, scopes]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        environment:
+          type: string
+          enum: [Live, Test]
+          description: 決定前綴：`Live` 為 `ak_live_`，`Test` 為 `ak_test_`
+        scopes:
+          type: array
+          minItems: 1
+          description: 只能從 `profile`、`email` 選擇
+          items:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 到期時間，必須晚於現在；不填為不過期
+
+    ApiKeySummary:
+      type: object
+      required: [id, name, environment, prefix, scopes, createdAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        environment:
+          type: string
+          enum: [Live, Test]
+        prefix:
+          type: string
+          description: 環境前綴加金鑰前 8 碼，僅供辨識
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [Active, Expired, Revoked]
+
+    ApiKeyListResponse:
+      type: object
+      required: [items, allowedScopes]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+        allowedScopes:
+          type: array
+          items:
+            type: string
+
+    IssuedApiKeyResponse:
+      type: object
+      required: [id, apiKey, apiSecret, prefix, scopes, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        apiKey:
+          type: string
+          description: API Key 明文，只會出現這一次
+        apiSecret:
+          type: string
+          description: HMAC 簽章用的 API Secret 明文，只會出現這一次
+        prefix:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    M2mEchoResponse:
+      type: object
+      required: [clientId, apiKeyId, scopes, bodyLength]
+      properties:
+        clientId:
+          type: string
+        apiKeyId:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            type: string
+        bodyLength:
+          type: integer
 
     ProblemDetails:
       type: object

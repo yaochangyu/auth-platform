@@ -1,7 +1,9 @@
 using AuthServer.Infrastructure;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -18,6 +20,11 @@ public class TokenController(AuthServerDbContext dbContext) : Controller
     {
         var request = this.HttpContext.GetOpenIddictServerRequest()
                       ?? throw new InvalidOperationException("無法取得 OpenID Connect 請求。");
+
+        if (request.IsClientCredentialsGrantType())
+        {
+            return this.ExchangeClientCredentials(request);
+        }
 
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType())
         {
@@ -39,6 +46,32 @@ public class TokenController(AuthServerDbContext dbContext) : Controller
                 }),
                 OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
+
+        return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    // Server-to-Server：沒有會員參與，Token 的身分是 Client 本身（sub = client_id）。
+    // Client 認證與範疇權限已由 OpenIddict 驗證；不核發 Refresh Token 與 ID Token。
+    private IActionResult ExchangeClientCredentials(OpenIddictRequest request)
+    {
+        // openid、offline_access 是會員身分與長期授權相關的範疇，對沒有會員的 M2M 沒有意義。
+        if (request.GetScopes().Any(scope => scope is Scopes.OpenId or Scopes.OfflineAccess))
+        {
+            return this.Forbid(
+                new AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.InvalidScope,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "Client Credentials 不可要求 openid 或 offline_access 範疇。",
+                }),
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
+        identity.SetClaim(Claims.Subject, request.ClientId);
+
+        var principal = new ClaimsPrincipal(identity);
+        principal.SetScopes(request.GetScopes());
+        principal.SetDestinations(_ => [Destinations.AccessToken]);
 
         return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }

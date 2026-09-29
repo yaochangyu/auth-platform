@@ -82,6 +82,12 @@ public class OAuthClientRepository(IOpenIddictApplicationManager applications, T
             descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
         }
 
+        // Confidential Client 有後端可安全保管 Secret，可直接以 client_id + client_secret 換發 M2M Access Token。
+        if (request.ClientType == OAuthClientType.Confidential)
+        {
+            descriptor.Permissions.Add(Permissions.GrantTypes.ClientCredentials);
+        }
+
         descriptor.Requirements.Clear();
         descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
 

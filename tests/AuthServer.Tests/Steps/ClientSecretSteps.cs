@@ -1,7 +1,5 @@
 using AuthServer.Tests.Support;
 using AuthShared.ClientSecrets;
-using Microsoft.Extensions.DependencyInjection;
-using OpenIddict.Abstractions;
 using Reqnroll;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -11,7 +9,6 @@ namespace AuthServer.Tests.Steps;
 [Binding]
 public class ClientSecretSteps(AuthServerTestBase testBase, TokenSteps token)
 {
-    private const string Placeholder = "placeholder-never-used-for-authentication";
     private static readonly TimeSpan GracePeriod = TimeSpan.FromHours(24);
 
     private ClientSecretSet _set = ClientSecretSet.Empty;
@@ -33,7 +30,7 @@ public class ClientSecretSteps(AuthServerTestBase testBase, TokenSteps token)
     public Task Given尚未發行(string clientId) => this.SaveClientAsync(clientId);
 
     [When("以 Client \"(.*)\" 使用佔位 Secret 兌換 Token")]
-    public Task When使用佔位Secret(string clientId) => token.ExchangeWithSecretAsync(clientId, Placeholder);
+    public Task When使用佔位Secret(string clientId) => token.ExchangeWithSecretAsync(clientId, TestClientSeeder.PlaceholderSecret);
 
     [Given("已輪替發行第二組 Secret，第一組 Secret 進入 24 小時過渡期")]
     public async Task Given輪替發行第二組()
@@ -65,44 +62,7 @@ public class ClientSecretSteps(AuthServerTestBase testBase, TokenSteps token)
 
     private DateTimeOffset Now => testBase.Factory.TimeProvider.GetUtcNow();
 
-    // 建立或更新測試用 Client。OpenIddict 要求 Confidential Client 必須有 client_secret，
-    // 這裡放一個不會被使用的佔位值；實際驗證只看 Properties 內的 Secret 集合。
-    private async Task SaveClientAsync(string clientId)
-    {
-        await using var scope = testBase.Factory.Services.CreateAsyncScope();
-        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
-
-        var descriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = clientId,
-            DisplayName = "Secret 輪替測試",
-            ClientType = ClientTypes.Confidential,
-            ClientSecret = Placeholder,
-            ConsentType = ConsentTypes.Implicit,
-            Permissions =
-            {
-                Permissions.Endpoints.Authorization,
-                Permissions.Endpoints.Token,
-                Permissions.GrantTypes.AuthorizationCode,
-                Permissions.GrantTypes.RefreshToken,
-                Permissions.ResponseTypes.Code,
-                Permissions.Prefixes.Scope + Scopes.OpenId,
-                Permissions.Prefixes.Scope + Scopes.Profile,
-                Permissions.Prefixes.Scope + Scopes.Email,
-                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-            },
-            Requirements = { Requirements.Features.ProofKeyForCodeExchange },
-            RedirectUris = { new Uri(AuthorizeSteps.RedirectUriOf(clientId)) },
-        };
-        descriptor.Properties[ClientSecretSet.PropertyName] = this._set.ToJson();
-
-        if (await applications.FindByClientIdAsync(clientId) is { } existing)
-        {
-            await applications.UpdateAsync(existing, descriptor);
-        }
-        else
-        {
-            await applications.CreateAsync(descriptor);
-        }
-    }
+    private Task SaveClientAsync(string clientId) =>
+        TestClientSeeder.SaveConfidentialAsync(
+            testBase.Factory.Services, clientId, this._set, clientCredentials: true, Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
 }
