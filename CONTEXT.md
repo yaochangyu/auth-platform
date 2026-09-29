@@ -77,3 +77,24 @@ _避免使用_: IdentityJwt (身分JWT), UserProfileToken (個人資料權杖)
 長效憑證，供受信任之客戶端在 Access Token 過期時向授權伺服器輪替換發新的 Access Token，而無需會員重複進行互動式登入。
 _避免使用_: RenewToken (續約權杖), LongLivedToken (長效權杖)
 
+**API Key (API 存取金鑰)**:
+用於伺服器對伺服器（Server-to-Server, M2M）無人介入環境之高熵靜態憑證，具備環境前綴（`ak_live_` / `ak_test_`）並以單向雜湊安全存儲於資料庫。
+_避免使用_: AccessKey (存取金鑰), AppSecret (應用機密), TokenString (權杖字串)
+
+**HMAC Request Signature (HMAC 請求簽章)**:
+客戶端利用 API Secret 針對 HTTP 請求方法、路徑、時間戳記與 Body 內容進行 HMAC-SHA256 運算所得之防偽雜湊，用於在無固定 IP 環境下防止中間人竄改與重放攻擊（Replay Attack）。
+_避免使用_: RequestHash (請求雜湊), Checksum (校驗碼), SignToken (簽章權杖)
+
+**Client Credentials (客戶端憑據)**:
+伺服器後端利用自身的 Client ID 與 Client Secret 直接向授權伺服器換發短效 Access Token 之無人介入身分憑據，用於機器間直接通訊。
+_避免使用_: ServiceAccount (服務帳號), AppCredentials (應用憑據)
+
+**Application Ownership (應用程式擁有權)**:
+在管理平台中將 OAuth Client 或 API Key 關聯至特定建立者會員（MemberId）的數據隔離機制，確保開發者僅能維護自身資產，唯管理員具全域審核與斷路權力。
+_避免使用_: TenantBinding (租戶綁定), AppUser (應用使用者)
+
+**Audit Log (操作稽核日誌)**:
+記錄管理人員與開發人員在管理平台中針對 Client 建立、Secret 輪替、Scope 異動、停用與 Token 撤銷等關鍵操作的不可變更軌跡記錄。
+_避免使用_: History (歷史), OperationTrace (操作追蹤), EventHistory (事件歷史)
+
+
