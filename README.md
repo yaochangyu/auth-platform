@@ -1,72 +1,102 @@
-# 統一身分與授權平台 (auth-platform)
+# 統一身分與授權平台 (Auth Platform)
 
-統一身分與授權平台（`auth-platform`）負責管理平台自然人之會員身分識別、認證憑據、會話狀態以及第三方應用程式授權。
+統一身分與授權平台（`auth-platform`）是遵循現代 **OAuth 2.1** 與 **OpenID Connect (OIDC)** 核心規範所建構之高安全性、雲原生身分識別中心（Identity Provider, IdP）與微服務授權平台。
 
----
-
-## 專案概覽 (Project Overview)
-
-本專案採用 Monorepo 架構，主要包含以下核心模組：
-
-- **`apps/member-api`**：基於 .NET 10 (LTS) 與 ASP.NET Core 建置之會員中心後端 API，採用 Clean Architecture 分層架構、PostgreSQL EF Core 資料持久化以及發信交易任務模式 (Transactional Outbox)。
-- **`apps/member-web`**：基於 Vue 3 + Vite + TypeScript + Tailwind CSS 建置之會員中心前台介面。
-- **`tests/MemberApi.Tests`**：基於 Reqnroll BDD、`WebApplicationFactory` 與 Testcontainers (PostgreSQL) 的端到端整合測試套件。
+本專案支援全生命週期身分與權限管理：包含自然人會員中心（SSO 單點登入）、公開授權伺服器（PKCE、JWKS、權杖輪替）、開發者自助服務控制台（Dogfooding 登入、應用管理、雙金鑰平滑輪替）、無固定 IP 伺服器對伺服器（S2S HMAC 簽章驗證）、以及系統管理員全域審查與緊急斷路器。
 
 ---
 
-## 先決條件 (Prerequisites)
+## 專案服務拓撲 (System Architecture & Topology)
 
-在開始本機開發前，請確保已安裝以下工具與執行環境：
+本專案採用現代解耦之多服務架構，共包含 **8 大服務容器**：
 
+| 服務模組 | 容器名稱 | 公開埠號 / 模擬網域 | 技術棧 | 職責與架構邊界 |
+|---|---|---|---|---|
+| **核心資料庫** | `postgres` | `5432` | PostgreSQL 17 | 實體共享資料庫，各服務獨立維護 Migration 歷程表記錄；內建防篡改觸發器。 |
+| **會員中心** | `member-api`<br>`member-web` | **`8080`**<br>`member.1111.com.tw:8080` | .NET 10 Web API<br>Vue 3 + Tailwind + Nginx | 自然人註冊、Email 驗證、防爆力破解帳號鎖定、密碼重設；核發主網域 SSO Cookie。 |
+| **授權中心** | `auth-server` | **`8091`**<br>`auth.1111.com.tw:8091` | OpenIddict + .NET 10 | OAuth 2.1 發號核心：強制 PKCE、JWKS 非對稱驗證、換票、Refresh Token 輪替、UserInfo。 |
+| **開發者後台** | `developer-api`<br>`developer-web` | **`8092`**<br>`developer.1111.com.tw:8092` | .NET 10 Web API<br>Vue 3 + shadcn-vue + Nginx | 應用專案 CRUD (Application Ownership)、OAuth 客戶端設定、雙金鑰過渡輪替、API 金鑰。 |
+| **管理員後台** | `admin-api`<br>`admin-web` | **`8093`**<br>`admin.1111.com.tw:8093` | .NET 10 Web API<br>Vue 3 + shadcn-vue + Nginx | 限定 `role: admin` 存取，全域應用審核、一鍵斷路器 (Circuit Breaker)、不可篡改 Audit Log。 |
+| **共用程式庫** | `apps/auth-shared` | *(Class Library)* | .NET 10 (LTS) | 共享 OpenIddict 資料模型、通用 HMAC-SHA256 請求簽章中介軟體。 |
+
+---
+
+## 核心安全亮點 (Security & Architectural Highlights)
+
+1. **OAuth 2.1 PKCE 強制**：
+   - 僅允許 `code_challenge_method=S256`，嚴格校驗 `code_verifier`；全面廢除 Implicit 模式與密碼模式。
+2. **主網域免密單點登入 (Silent SSO)**：
+   - `member-api` 與 `auth-server` 透過共用 ASP.NET Core Data Protection 金鑰目錄與應用名稱，解密主網域 Session Cookie，並即時比對資料庫 `SecurityStamp`，達成跨站免密無縫單點登入。
+3. **5 分鐘加密 Consent Ticket 防竄改**：
+   - 第三方應用需會員手動同意時，Auth Server 將授權上下文加密封裝為短效、單次使用的 `consent_id`，302 跳轉至 Vue SPA。Scopes 嚴格限定只能縮減不可擴張。
+4. **Refresh Token Rotation (RTR) 輪替攻防**：
+   - Access Token 為短效 15 分鐘 RS256 JWT；Refresh Token 為 30 天滑動效期。每次換票舊 Token 立即失效；若偵測到重放舊 Token，系統自動觸發**「授權家族全面撤銷 (Family Revocation)」**。
+5. **雲端無固定 IP 伺服器對伺服器 (S2S) 防護**：
+   - 支援 Client Credentials Grant 換票。
+   - 支援 API Key（前綴 `ak_live_...` / `ak_test_...`）搭配 **HMAC-SHA256 請求簽章**（Method + Path + Timestamp ±5m 防重放 + Body 雜湊防竄改，採固定時間比對防時序攻擊）。
+6. **一鍵緊急斷路器 (Circuit Breaker) 與不可篡改 Audit Log**：
+   - 管理員停用涉嫌濫用之 App 時，單一資料庫交易內列級鎖定，並整批撤銷該 App 所有 Token、授權紀錄與 API Key。
+   - PostgreSQL 觸發器保證 `audit_logs` 表嚴禁任何 `UPDATE`、`DELETE` 或 `TRUNCATE`，杜絕銷毀證據可能。
+
+---
+
+## 快速上手 (Quick Start)
+
+### 方式 A：Docker Compose 一鍵啟動全套服務（推薦）
+
+專案根目錄已配置好全部容器編排、健康檢查與 Data Protection 金鑰持久化：
+
+```bash
+# 啟動全部 8 個容器（PostgreSQL、4 組 API、3 座前端 SPA）
+docker compose up -d --build
+
+# 檢查所有服務運行狀態與健康指標
+docker compose ps
+```
+
+啟動完成後，各站預設存取位址（可透過 `--resolve` 或在 `/etc/hosts` 指向 `127.0.0.1` 訪問）：
+- 會員中心：`http://member.1111.com.tw:8080`
+- 授權伺服器：`http://auth.1111.com.tw:8091`
+- 開發者後台：`http://developer.1111.com.tw:8092`
+- 管理員後台：`http://admin.1111.com.tw:8093`
+
+---
+
+### 方式 B：本機開發與測試
+
+#### 先決條件
 - **.NET 10 SDK** (LTS)
 - **Node.js 20+** 與 **npm**
-- **Docker**（本機執行 Docker 守護進程，供 BDD Testcontainers 整合測試自動拉取並啟動 PostgreSQL 容器）
+- **Docker**（供 BDD 測試套件啟動 Testcontainers 測試資料庫）
 
----
+#### 執行全套自動化 BDD 測試（245 項）
+整合測試採用最高測試接縫（Single High Seam Policy），透過 Testcontainers 自動拉起真實 PostgreSQL 容器驗證業務情境：
 
-## 本機資料庫與設定 (Database & Configuration)
-
-後端支援透過 `dotnet user-secrets` 安全管理敏感設定，避免將本機資料庫密碼簽入版本控制：
-
-1. **設定本機 PostgreSQL 連線字串**：
-   ```bash
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=member_center;Username=postgres;Password=your_password" --project apps/member-api
-   ```
-
-2. **套用資料庫遷移 (EF Core Migration)**：
-   ```bash
-   dotnet ef database update --project apps/member-api
-   ```
-
----
-
-## 啟動與測試指令 (Running & Testing)
-
-### 1. 啟動後端 API
-```bash
-dotnet run --project apps/member-api
-```
-- API 預設監聽位址：`http://localhost:5138` (HTTP) 與 `https://localhost:7031` (HTTPS)
-
-### 2. 啟動前端 Web
-```bash
-cd apps/member-web
-npm install
-npm run dev
-```
-- 前端預設開發位址：`http://localhost:5173`
-
-### 3. 執行自動化測試
 ```bash
 dotnet test AuthPlatform.slnx
 ```
-> **注意**：整合測試採用單一最高測試接縫（Single High Seam Policy），執行時會由 Testcontainers 自動啟動隔離的 PostgreSQL 測試容器，驗證完畢後自動銷毀回收，無需手動維護測試資料庫。
+
+#### 執行全鏈路端到端 Smoke Test（65 項驗證）
+在 Docker Compose 啟動狀態下，直接執行全流程自動化煙霧測試腳本（模擬真實註冊 ➔ 登入 ➔ 建立 App ➔ PKCE 授權 ➔ Consent ➔ 換票 ➔ UserInfo ➔ HMAC 簽章 ➔ 斷路切斷 ➔ 觸發器防篡改）：
+
+```bash
+./scripts/oauth-smoke-test.sh
+```
 
 ---
 
-## API 契約與文件 (API Contracts & Documentation)
+## 規格文件與架構指南 (Documentation & Specs)
 
-- **OpenAPI 3.0 規格文件**：位於 [`docs/specs/member-api-v1.yaml`](docs/specs/member-api-v1.yaml)，全面遵循統一領域語言（Ubiquitous Language）與 RFC 7807 (`application/problem+json`) 錯誤回應規範。
-- **本機 OpenAPI / Swagger 端點**：
-  - OpenAPI 規格端點：`http://localhost:5138/openapi/v1.json`
-  - Swagger UI 文件介面：`http://localhost:5138/swagger`
+- 🌟 **系統全景規格與架構白皮書（人類可讀 HTML 文件）**：
+  - [`docs/auth-platform-spec-guide.html`](docs/auth-platform-spec-guide.html)（專案內）
+- 📖 **端到端驗收與啟動手冊**：
+  - [`docs/oauth-e2e-verification.md`](docs/oauth-e2e-verification.md)
+  - [`docs/specs/developer-portal-spec.md`](docs/specs/developer-portal-spec.md)
+- 📐 **OpenAPI 3.0 契約定義**：
+  - 會員中心：[`docs/specs/member-api-v1.yaml`](docs/specs/member-api-v1.yaml)
+  - 開發者後台：[`docs/specs/developer-api-v1.yaml`](docs/specs/developer-api-v1.yaml)
+  - 管理員後台：[`docs/specs/admin-api-v1.yaml`](docs/specs/admin-api-v1.yaml)
+- 🏛️ **架構決策記錄 (Architecture Decision Records, ADR)**：
+  - 位於 [`docs/adr/`](docs/adr/)，完整記錄 ADR 0001 至 ADR 0007 之技術選型與取捨權衡。
+- 📚 **領域模型與統一語言**：
+  - 詳見 [`CONTEXT.md`](CONTEXT.md)。
