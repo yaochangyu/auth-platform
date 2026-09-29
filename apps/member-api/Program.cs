@@ -9,6 +9,7 @@ using MemberApi.Validators;
 using MemberApi.Workers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +35,13 @@ builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequ
 // 以設定檔控制而非寫死，正式環境維持預設安全值，docker-compose 才需要放寬。
 var requireHttps = builder.Configuration.GetValue("Auth:RequireHttps", true);
 var cookieDomain = builder.Configuration["Auth:CookieDomain"] ?? ".1111.com.tw";
+
+// 與 auth-server 共用 Application Name 與金鑰目錄，auth-server 才能解開此處簽發的 Session Cookie 實現 SSO。
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("auth-platform");
+if (builder.Configuration["Auth:DataProtectionKeyDirectory"] is { Length: > 0 } dataProtectionKeyDirectory)
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyDirectory));
+}
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

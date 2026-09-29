@@ -1,3 +1,5 @@
+using AuthServer.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Reqnroll;
 using Testcontainers.PostgreSql;
 
@@ -21,6 +23,21 @@ public static class TestRunHooks
 
         await _container.StartAsync();
         ConnectionString = _container.GetConnectionString();
+
+        // 與 member-api 共用資料庫（ADR 0006）；Auth Server 只讀取 members.security_stamp 驗證 SSO Cookie，
+        // 測試只建立該最小欄位，不引用 MemberApi 專案（兩者的 Program 類別會衝突）。
+        // 兩個 Feature 類別平行啟動伺服器，先在此完成 migration，避免同時套用互相衝突。
+        var options = new DbContextOptionsBuilder<AuthServerDbContext>()
+            .UseNpgsql(ConnectionString, npgsql => npgsql.MigrationsHistoryTable(AuthServerDbContext.MigrationsHistoryTable))
+            .UseSnakeCaseNamingConvention()
+            .UseOpenIddict()
+            .Options;
+        await using (var dbContext = new AuthServerDbContext(options))
+        {
+            await dbContext.Database.MigrateAsync();
+        }
+
+        await _container.ExecScriptAsync("create table members (id uuid primary key, security_stamp text not null);");
     }
 
     [AfterTestRun]

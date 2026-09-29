@@ -11,16 +11,6 @@ public class DiscoverySteps(AuthServerTestBase testBase)
     private JsonElement _body;
     private string _keysBeforeRestart = string.Empty;
 
-    [Given("初始化 Auth Server 測試伺服器")]
-    public void Given初始化AuthServer測試伺服器() => testBase.Start();
-
-    [AfterScenario]
-    public async Task 釋放測試伺服器()
-    {
-        await testBase.StopAsync();
-        testBase.DeleteKeyDirectory();
-    }
-
     [When("使用者呼叫 GET \\/.well-known\\/openid-configuration 端點")]
     public Task When呼叫OpenIdConfiguration() => this.GetAsync("/.well-known/openid-configuration");
 
@@ -41,9 +31,6 @@ public class DiscoverySteps(AuthServerTestBase testBase)
         await testBase.StopAsync();
         testBase.Start();
     }
-
-    [Then("回應狀態碼應為 (\\d+)")]
-    public void Then回應狀態碼應為(int expected) => Assert.Equal(expected, (int)testBase.LastResponse!.StatusCode);
 
     [Then("回應內容的 issuer 欄位應與伺服器位址一致")]
     public void Then回應內容的Issuer應與伺服器位址一致()

@@ -11,5 +11,6 @@ public class AuthServerWebApplicationFactory(string connectionString, string key
         builder.UseSetting("ConnectionStrings:AuthServerDb", connectionString);
         builder.UseSetting("Auth:KeyDirectory", keyDirectory);
         builder.UseSetting("Auth:RequireHttps", "false");
+        builder.UseSetting("Auth:MemberLoginUrl", "https://member.1111.com.tw/login");
     }
 }

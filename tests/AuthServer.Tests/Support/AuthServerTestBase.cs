@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc.Testing;
+
 namespace AuthServer.Tests.Support;
 
 public class AuthServerTestBase
@@ -7,6 +9,8 @@ public class AuthServerTestBase
     // 同一情境內重啟伺服器時沿用，才能驗證簽章金鑰確實落地而非每次重新產生。
     public string KeyDirectory { get; } = Directory.CreateTempSubdirectory("auth-server-keys-").FullName;
 
+    public AuthServerWebApplicationFactory Factory => this._factory!;
+
     public HttpClient Client { get; private set; } = null!;
 
     public HttpResponseMessage? LastResponse { get; set; }
@@ -14,7 +18,7 @@ public class AuthServerTestBase
     public void Start()
     {
         this._factory = new AuthServerWebApplicationFactory(TestRunHooks.ConnectionString, this.KeyDirectory);
-        this.Client = this._factory.CreateClient();
+        this.Client = this._factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
     }
 
     public async Task StopAsync()
