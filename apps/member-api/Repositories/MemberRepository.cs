@@ -58,17 +58,20 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
         await using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE members
-            SET failed_login_attempts = failed_login_attempts + 1,
+            SET failed_login_attempts = CASE WHEN lockout_end_at IS NOT NULL AND lockout_end_at <= @now THEN 1
+                                             ELSE failed_login_attempts + 1 END,
                 lockout_end_at = CASE
-                    WHEN failed_login_attempts + 1 >= @maxAttempts THEN @lockoutEndAt
-                    ELSE lockout_end_at
-                END
+                    WHEN (CASE WHEN lockout_end_at IS NOT NULL AND lockout_end_at <= @now THEN 1
+                               ELSE failed_login_attempts + 1 END) >= @maxAttempts THEN @lockoutEndAt
+                    WHEN lockout_end_at <= @now THEN NULL
+                    ELSE lockout_end_at END
             WHERE id = @memberId
             RETURNING failed_login_attempts, lockout_end_at;
             """;
         command.Parameters.Add(new NpgsqlParameter("memberId", memberId));
         command.Parameters.Add(new NpgsqlParameter("maxAttempts", maxAttempts));
         command.Parameters.Add(new NpgsqlParameter("lockoutEndAt", now + lockoutDuration));
+        command.Parameters.Add(new NpgsqlParameter("now", now));
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))

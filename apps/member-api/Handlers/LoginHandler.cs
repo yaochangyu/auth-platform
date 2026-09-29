@@ -20,18 +20,11 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
 
         var now = timeProvider.GetUtcNow();
 
-        if (member.LockoutEndAt is not null)
+        // 鎖定期間內一律直接拒絕，即使密碼正確也不進行雜湊比對；
+        // 鎖定時效已過期的「重設為全新計數起點」邏輯已下推至 RegisterFailedLoginAsync 的原子 SQL 內處理。
+        if (member.LockoutEndAt is not null && member.LockoutEndAt > now)
         {
-            // 鎖定期間內一律直接拒絕，即使密碼正確也不進行雜湊比對
-            if (member.LockoutEndAt > now)
-            {
-                return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
-            }
-
-            // 鎖定時效已過期：視為全新的計數起點，清空殘留的失敗次數與鎖定戳記
-            member.FailedLoginAttempts = 0;
-            member.LockoutEndAt = null;
-            await memberRepository.SaveChangesAsync(cancellationToken);
+            return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
         }
 
         var passwordVerified = passwordHasher.VerifyHashedPassword(member, member.PasswordHash, request.Password) != PasswordVerificationResult.Failed;

@@ -72,3 +72,9 @@ Feature: 登入防爆破與帳號漸進式暫時鎖定
     Then 回應狀態碼應為 401
     And 該會員的 failedLoginAttempts 應為 1
     And 該會員的 lockoutEndAt 應為空
+
+  Scenario: 鎖定已過期的會員被並行送出 10 次錯誤密碼
+    Given 系統已存在一筆狀態為 Active 且鎖定時效已過期的會員，Email 為 "lockout-expired-concurrent@1111.com.tw"，密碼為 "P@ssw0rd2026!"
+    When 使用者並行送出 10 次錯誤密碼呼叫登入 API
+    Then 該會員的 failedLoginAttempts 應為 10
+    And 該會員應處於鎖定狀態
