@@ -13,6 +13,8 @@ const form = reactive({
 
 const { isSubmitting, error, loginAndRedirect } = useAuth()
 const countdown = useCountdown()
+// 模板只會自動解包頂層的 ref；直接寫 countdown.isRunning 會拿到 ComputedRef 物件（恆為真值），登入按鈕會永遠停用。
+const { isRunning, label } = countdown
 
 watch(error, (value) => {
   if (value?.status === 423 && value.lockoutEndAt) {
@@ -47,11 +49,11 @@ function onSubmit() {
 
     <div v-if="error?.status === 423" class="text-sm text-destructive">
       <p>{{ error.title }}</p>
-      <p v-if="countdown.isRunning">帳號已暫時鎖定，剩餘 {{ countdown.label }}</p>
+      <p v-if="isRunning">帳號已暫時鎖定，剩餘 {{ label }}</p>
     </div>
     <p v-else-if="error" class="text-sm text-destructive">{{ error.title }}</p>
 
-    <Button type="submit" class="w-full" :disabled="isSubmitting || countdown.isRunning">
+    <Button type="submit" class="w-full" :disabled="isSubmitting || isRunning">
       {{ isSubmitting ? '登入中...' : '登入' }}
     </Button>
 
