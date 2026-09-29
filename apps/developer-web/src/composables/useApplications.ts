@@ -1,9 +1,6 @@
 import { ref } from 'vue'
-import { justLoggedIn, useOAuth } from '@/composables/useOAuth'
-import { useAuthStore } from '@/stores/auth'
+import { apiRequest, problemOf } from '@/composables/useApi'
 import type { ApplicationDto, ApplicationListResponse, ApplicationRequest, ProblemDetails } from '@/types/application'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export function useApplications() {
   const isLoading = ref(false)
@@ -12,37 +9,14 @@ export function useApplications() {
   const applications = ref<ApplicationDto[]>([])
   const application = ref<ApplicationDto | null>(null)
 
-  async function request(path: string, init: RequestInit = {}): Promise<Response> {
-    const auth = useAuthStore()
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: {
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        Authorization: `Bearer ${auth.accessToken}`,
-      },
-    })
-
-    // Access Token 過期或被撤銷：清除後走 SSO 無感重新登入，回到目前頁面。
-    if (response.status === 401 && !justLoggedIn()) {
-      auth.clear()
-      await useOAuth().startLogin(window.location.pathname + window.location.search)
-    }
-
-    return response
-  }
-
   async function load<T>(path: string, init?: RequestInit): Promise<T | null> {
     error.value = null
-    const response = await request(path, init)
+    const response = await apiRequest(path, init)
     if (response.ok) {
       return (await response.json()) as T
     }
 
-    // 非 JSON 的錯誤回應（例如 Proxy 的 502）不能讓畫面崩潰。
-    error.value = await response
-      .json()
-      .then((problem) => problem as ProblemDetails)
-      .catch(() => ({ title: '發生未預期的錯誤，請稍後再試。', status: response.status }))
+    error.value = await problemOf(response)
     return null
   }
 

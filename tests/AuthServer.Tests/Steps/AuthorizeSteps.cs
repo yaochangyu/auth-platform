@@ -22,6 +22,10 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
     public static readonly DateTimeOffset MemberCreatedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     public static readonly DateTimeOffset MemberUpdatedAt = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
 
+    // 測試中動態建立的 Client（例如 Secret 輪替）統一使用這組回呼網址。
+    public static string RedirectUriOf(string clientId) =>
+        RedirectUris.GetValueOrDefault(clientId, "https://demo-backend.1111.com.tw/callback");
+
     public const string Verifier = "test-code-verifier-with-enough-entropy-1234567890";
 
     private const string State = "state-12345";

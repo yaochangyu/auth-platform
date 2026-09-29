@@ -16,13 +16,29 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IValidator<ApplicationRequest>, ApplicationRequestValidator>();
+builder.Services.AddScoped<IValidator<OAuthClientRequest>, OAuthClientRequestValidator>();
 builder.Services.AddScoped<ApplicationRepository>();
+builder.Services.AddScoped<OAuthClientRepository>();
 
 builder.Services.AddDbContext<DeveloperApiDbContext>(options =>
     options.UseNpgsql(
             builder.Configuration.GetConnectionString("DeveloperApiDb"),
             npgsql => npgsql.MigrationsHistoryTable(DeveloperApiDbContext.MigrationsHistoryTable))
         .UseSnakeCaseNamingConvention());
+
+builder.Services.AddDbContext<OpenIddictStoreContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DeveloperApiDb")).UseSnakeCaseNamingConvention();
+    options.UseOpenIddict();
+});
+
+// 只用 OpenIddict 的管理器讀寫 Client（auth-server 才是授權伺服器）。快取停用：auth-server 在另一個行程，
+// 快取不會反映對方的異動，也避免這裡讀到過時的 Secret 集合。
+builder.Services.AddOpenIddict().AddCore(options =>
+{
+    options.UseEntityFrameworkCore().UseDbContext<OpenIddictStoreContext>();
+    options.DisableEntityCaching();
+});
 
 // Resource Server：以 auth-server 的 OIDC Discovery / JWKS 離線驗證 RS256 JWT（ADR 0005）。
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

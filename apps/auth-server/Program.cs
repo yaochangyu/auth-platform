@@ -55,7 +55,15 @@ builder.Services.AddDbContext<AuthServerDbContext>(options =>
 });
 
 builder.Services.AddOpenIddict()
-    .AddCore(options => options.UseEntityFrameworkCore().UseDbContext<AuthServerDbContext>())
+    .AddCore(options =>
+    {
+        options.UseEntityFrameworkCore().UseDbContext<AuthServerDbContext>();
+        options.ReplaceApplicationManager(typeof(MultiSecretApplicationManager<>));
+
+        // Client 設定與 Secret 由 developer-api 在另一個行程寫入；快取只會在本行程內失效，
+        // 開著會讓輪替、作廢的結果延遲生效，所以停用（每次驗證直接讀資料庫）。
+        options.DisableEntityCaching();
+    })
     .AddServer(options =>
     {
         options.SetAuthorizationEndpointUris("/connect/authorize")

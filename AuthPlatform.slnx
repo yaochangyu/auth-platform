@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/apps/" />
+  <Folder Name="/apps/auth-shared/">
+    <Project Path="apps/auth-shared/AuthShared.csproj" />
+  </Folder>
   <Folder Name="/apps/auth-server/">
     <Project Path="apps/auth-server/AuthServer.csproj" />
   </Folder>

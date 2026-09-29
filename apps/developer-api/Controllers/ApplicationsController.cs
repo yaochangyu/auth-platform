@@ -1,22 +1,19 @@
-using System.Security.Claims;
 using DeveloperApi.Contracts;
 using DeveloperApi.Entities;
 using DeveloperApi.Repositories;
 using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace DeveloperApi.Controllers;
 
-[ApiController]
 [Route("api/v1/applications")]
 [Authorize(Policy = AuthPolicies.DeveloperApi)]
 public class ApplicationsController(
     ApplicationRepository repository,
+    OAuthClientRepository oauthClients,
     IValidator<ApplicationRequest> validator,
-    TimeProvider timeProvider) : ControllerBase
+    TimeProvider timeProvider) : DeveloperApiControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApplicationListResponse), StatusCodes.Status200OK)]
@@ -92,34 +89,10 @@ public class ApplicationsController(
         application.HomepageUrl = NullIfEmpty(request.HomepageUrl);
         application.UpdatedAt = timeProvider.GetUtcNow();
         await repository.SaveChangesAsync(cancellationToken);
+        await oauthClients.RenameAsync(application.ClientId, application.Name, cancellationToken);
 
         return this.Ok(ApplicationResponse.From(application));
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
-
-    // 會員身分只取自已驗證 Access Token 的 sub claim，請求內容中的任何欄位都不能指定擁有者。
-    private Guid CurrentMemberId() => Guid.Parse(this.User.FindFirstValue("sub")!);
-
-    // 不存在與不屬於呼叫者一律回 404，避免洩漏他人專案是否存在。
-    private ObjectResult NotFoundProblem() => this.Problem(
-        type: "https://auth.1111.com.tw/errors/not-found", title: "找不到指定的應用專案", statusCode: StatusCodes.Status404NotFound);
-
-    private ObjectResult ToValidationProblem(ValidationResult result)
-    {
-        var modelState = new ModelStateDictionary();
-        foreach (var error in result.Errors)
-        {
-            modelState.AddModelError(char.ToLowerInvariant(error.PropertyName[0]) + error.PropertyName[1..], error.ErrorMessage);
-        }
-
-        var problem = (ObjectResult)this.ValidationProblem(modelState);
-        if (problem.Value is ValidationProblemDetails details)
-        {
-            details.Title = "請求參數驗證失敗";
-            details.Type = "https://auth.1111.com.tw/errors/validation-failed";
-        }
-
-        return problem;
-    }
 }

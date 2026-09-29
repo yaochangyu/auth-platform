@@ -10,8 +10,6 @@ namespace DeveloperApi.Tests.Steps;
 [Binding]
 public class ApplicationSteps(DeveloperApiTestBase testBase)
 {
-    private readonly Dictionary<string, Guid> _applicationIds = [];
-    private JsonElement _body;
 
     [When("開發者 \"([^\"]*)\" 建立應用專案，名稱 \"([^\"]*)\"、簡介 \"([^\"]*)\"、聯絡 Email \"([^\"]*)\"")]
     public Task When建立專案(string developer, string name, string description, string email) =>
@@ -26,18 +24,22 @@ public class ApplicationSteps(DeveloperApiTestBase testBase)
     {
         await this.CreateAsync(developer, name, "測試用簡介", "dev@example.com", null, null);
         Assert.Equal(201, (int)testBase.LastResponse!.StatusCode);
-        this._applicationIds[name] = this._body.GetProperty("id").GetGuid();
+        testBase.ApplicationIds[name] = testBase.LastBody.GetProperty("id").GetGuid();
+        testBase.ClientIds[name] = testBase.LastBody.GetProperty("clientId").GetString()!;
+
+        // 時間是假的且不會自己前進；推進一秒讓「新到舊」排序有確定的先後。
+        testBase.Factory.TimeProvider.Advance(TimeSpan.FromSeconds(1));
     }
 
     [When("開發者 \"([^\"]*)\" 檢視專案 \"([^\"]*)\"")]
     public Task When檢視專案(string developer, string name) =>
-        this.SendAsync(HttpMethod.Get, $"/api/v1/applications/{this._applicationIds[name]}", testBase.TokenFor(developer));
+        testBase.SendAsync(HttpMethod.Get, $"/api/v1/applications/{testBase.ApplicationIds[name]}", testBase.TokenFor(developer));
 
     [When("開發者 \"([^\"]*)\" 將專案 \"([^\"]*)\" 更新為名稱 \"([^\"]*)\"")]
     public Task When更新專案(string developer, string project, string newName) =>
-        this.SendAsync(
+        testBase.SendAsync(
             HttpMethod.Put,
-            $"/api/v1/applications/{this._applicationIds[project]}",
+            $"/api/v1/applications/{testBase.ApplicationIds[project]}",
             testBase.TokenFor(developer),
             Request(newName, "更新後的簡介", "dev@example.com", null, null));
 
@@ -55,38 +57,41 @@ public class ApplicationSteps(DeveloperApiTestBase testBase)
             "缺少 developer_api 範疇的 Access Token" => TestJwtIssuer.Create(member, scope: "openid profile email"),
             _ => throw new ArgumentOutOfRangeException(nameof(tokenCase), tokenCase, "未知的 Token 情況"),
         };
-        return this.SendAsync(HttpMethod.Get, "/api/v1/applications", token);
+        return testBase.SendAsync(HttpMethod.Get, "/api/v1/applications", token);
     }
 
     [Then("回應的專案名稱應為 \"([^\"]*)\"")]
-    public void Then專案名稱(string expected) => Assert.Equal(expected, this._body.GetProperty("name").GetString());
+    public void Then專案名稱(string expected) => Assert.Equal(expected, testBase.LastBody.GetProperty("name").GetString());
 
     [Then("回應的專案應有系統產生的 clientId")]
-    public void ThenClientId() => Assert.False(string.IsNullOrWhiteSpace(this._body.GetProperty("clientId").GetString()));
+    public void ThenClientId() => Assert.False(string.IsNullOrWhiteSpace(testBase.LastBody.GetProperty("clientId").GetString()));
 
     [Then("回應的專案狀態應為 \"([^\"]*)\"")]
-    public void Then專案狀態(string expected) => Assert.Equal(expected, this._body.GetProperty("status").GetString());
+    public void Then專案狀態(string expected) => Assert.Equal(expected, testBase.LastBody.GetProperty("status").GetString());
 
     [Then("回應的專案 Logo 應為 \"([^\"]*)\"")]
-    public void Then專案Logo(string expected) => Assert.Equal(expected, this._body.GetProperty("logoUrl").GetString());
+    public void Then專案Logo(string expected) => Assert.Equal(expected, testBase.LastBody.GetProperty("logoUrl").GetString());
 
     [Then("回應的專案官網應為 \"([^\"]*)\"")]
-    public void Then專案官網(string expected) => Assert.Equal(expected, this._body.GetProperty("homepageUrl").GetString());
+    public void Then專案官網(string expected) => Assert.Equal(expected, testBase.LastBody.GetProperty("homepageUrl").GetString());
 
     [Then("回應的錯誤應指出欄位 \"([^\"]*)\"")]
     public void Then錯誤欄位(string field)
     {
-        Assert.True(this._body.GetProperty("errors").TryGetProperty(field, out var messages), $"errors 應包含欄位 {field}");
+        // 集合欄位的錯誤鍵會帶索引（例如 redirectUris[0]），一併視為指出該欄位。
+        var error = testBase.LastBody.GetProperty("errors").EnumerateObject()
+            .FirstOrDefault(property => property.Name == field || property.Name.StartsWith(field + "[", StringComparison.Ordinal));
+        Assert.True(error.Name is not null, $"errors 應包含欄位 {field}");
 
         // 訊息會直接顯示在畫面上，不可退回 FluentValidation 的英文預設訊息。
-        Assert.DoesNotContain("The specified condition was not met", messages[0].GetString());
+        Assert.DoesNotContain("The specified condition was not met", error.Value[0].GetString());
     }
 
     [Then("開發者 \"([^\"]*)\" 的專案清單應為 \"([^\"]*)\"")]
     public async Task Then專案清單(string developer, string expectedNames)
     {
-        await this.SendAsync(HttpMethod.Get, "/api/v1/applications", testBase.TokenFor(developer));
-        var names = this._body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("name").GetString());
+        await testBase.SendAsync(HttpMethod.Get, "/api/v1/applications", testBase.TokenFor(developer));
+        var names = testBase.LastBody.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("name").GetString());
         Assert.Equal(expectedNames.Length == 0 ? [] : expectedNames.Split('、'), names);
     }
 
@@ -94,7 +99,7 @@ public class ApplicationSteps(DeveloperApiTestBase testBase)
     public async Task Then專案名稱為(string developer, string project, string expectedName)
     {
         await this.When檢視專案(developer, project);
-        Assert.Equal(expectedName, this._body.GetProperty("name").GetString());
+        Assert.Equal(expectedName, testBase.LastBody.GetProperty("name").GetString());
     }
 
     private static object Request(string name, string description, string email, string? logo, string? homepage) => new
@@ -107,23 +112,5 @@ public class ApplicationSteps(DeveloperApiTestBase testBase)
     };
 
     private Task CreateAsync(string developer, string name, string description, string email, string? logo, string? homepage) =>
-        this.SendAsync(HttpMethod.Post, "/api/v1/applications", testBase.TokenFor(developer), Request(name, description, email, logo, homepage));
-
-    private async Task SendAsync(HttpMethod method, string url, string? token, object? body = null)
-    {
-        using var request = new HttpRequestMessage(method, url);
-        if (token is not null)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body);
-        }
-
-        testBase.LastResponse = await testBase.Client.SendAsync(request);
-        var text = await testBase.LastResponse.Content.ReadAsStringAsync();
-        this._body = text.Length == 0 ? default : JsonSerializer.Deserialize<JsonElement>(text);
-    }
+        testBase.SendAsync(HttpMethod.Post, "/api/v1/applications", testBase.TokenFor(developer), Request(name, description, email, logo, homepage));
 }

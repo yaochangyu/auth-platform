@@ -29,6 +29,10 @@ async function onSubmit(request: ApplicationRequest) {
         <p class="text-sm text-muted-foreground">Client ID：<code>{{ application.clientId }}</code>（{{ application.status }}）</p>
       </div>
 
+      <RouterLink :to="`/apps/${applicationId}/oauth`" class="inline-block text-sm font-medium text-foreground underline">
+        OAuth 2.1 設定與 Client Secret →
+      </RouterLink>
+
       <p v-if="error && !error.errors" class="text-sm text-destructive">{{ error.title }}</p>
       <p v-if="saved" class="text-sm text-muted-foreground">已儲存變更。</p>
 

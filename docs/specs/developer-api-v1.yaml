@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Applications
     description: 應用專案（Application）生命週期管理
+  - name: OAuth Client
+    description: 應用專案的 OAuth 2.1 Client 設定與 Client Secret 生命週期
 
 security:
   - bearerAuth: []
@@ -124,6 +126,132 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/applications/{applicationId}/oauth-client:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [OAuth Client]
+      summary: 取得應用專案的 OAuth Client 設定
+      description: 尚未設定時回傳預設值（Public、無網址、無範疇）。含 Client Secret 的摘要（不含明文與雜湊）。
+      operationId: getOAuthClient
+      responses:
+        '200':
+          description: OAuth Client 設定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthClientResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [OAuth Client]
+      summary: 設定應用專案的 OAuth Client
+      description: |
+        設定客戶端類型、Redirect URIs、Post Logout Redirect URIs 與申請的範疇，並同步到 auth-server。
+        開發者建立的 Client 一律需要會員同意（Explicit）且強制 PKCE；只有申請 `offline_access` 時才可使用 Refresh Token。
+        改為 Public 時既有的 Client Secret 一併清除。
+      operationId: putOAuthClient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthClientRequest'
+      responses:
+        '200':
+          description: 設定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthClientResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/applications/{applicationId}/oauth-client/secrets:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [OAuth Client]
+      summary: 發行新的 Client Secret
+      description: |
+        僅 Confidential Client 可發行。明文只在此回應出現一次（`Cache-Control: no-store`），資料庫只保存 SHA-256 雜湊。
+        雙金鑰平滑輪替：既有有效的 Secret 進入 24 小時過渡期（期間新舊皆可向 auth-server 換發 Token）；
+        同時有效的 Secret 最多 2 組，已達上限回 `409`。
+      operationId: issueClientSecret
+      responses:
+        '201':
+          description: 發行成功
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuedClientSecretResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/applications/{applicationId}/oauth-client/secrets/{secretId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: secretId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [OAuth Client]
+      summary: 手動作廢 Client Secret
+      description: 立即失效，不論是否仍在過渡期。找不到或已作廢回 `404`。
+      operationId: revokeClientSecret
+      responses:
+        '204':
+          description: 已作廢
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -207,6 +335,110 @@ components:
           items:
             $ref: '#/components/schemas/ApplicationResponse'
 
+    OAuthClientRequest:
+      type: object
+      required: [clientType, redirectUris, postLogoutRedirectUris, scopes]
+      properties:
+        clientType:
+          type: string
+          enum: [Public, Confidential]
+        redirectUris:
+          type: array
+          maxItems: 10
+          description: 嚴格比對；須為 https（本機開發可用 http://localhost），不可含 `#`、帳號密碼或萬用字元
+          items:
+            type: string
+            format: uri
+        postLogoutRedirectUris:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            format: uri
+        scopes:
+          type: array
+          minItems: 1
+          description: 只能從 `openid`、`profile`、`email`、`offline_access` 選擇（`developer_api` 為平台內部專用，不開放）
+          items:
+            type: string
+
+    ClientSecretSummary:
+      type: object
+      required: [id, prefix, createdAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        prefix:
+          type: string
+          description: 明文的前 7 碼，僅供辨識
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 過渡期結束時間；使用中的 Secret 為 null
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [Active, Expiring, Expired, Revoked]
+
+    OAuthClientResponse:
+      type: object
+      required: [clientId, clientType, redirectUris, postLogoutRedirectUris, scopes, allowedScopes, secrets]
+      properties:
+        clientId:
+          type: string
+        clientType:
+          type: string
+          enum: [Public, Confidential]
+        redirectUris:
+          type: array
+          items:
+            type: string
+        postLogoutRedirectUris:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        allowedScopes:
+          type: array
+          description: 開發者可申請的範疇清單
+          items:
+            type: string
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientSecretSummary'
+
+    IssuedClientSecretResponse:
+      type: object
+      required: [id, secret, prefix, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        secret:
+          type: string
+          description: Client Secret 明文，只會出現這一次
+        prefix:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
     ProblemDetails:
       type: object
       properties:
@@ -234,6 +466,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     Unauthorized:
       description: 未提供、格式錯誤、偽造或已過期的 Access Token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: 與目前狀態衝突（例如 Public Client 不能發行 Secret、同時有效的 Secret 已達 2 組、同時被其他請求修改）
       content:
         application/problem+json:
           schema:

@@ -21,7 +21,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
     {
         // 要求 offline_access 才會核發 Refresh Token（OpenIddict / OIDC 規範）。
         await authorize.AuthorizeAsync(
-            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUris[clientId], scope: "openid profile email offline_access");
+            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUriOf(clientId), scope: "openid profile email offline_access");
         this._code = QueryHelpers.ParseQuery(authorize.Location!.Query)["code"]!;
         Assert.False(string.IsNullOrEmpty(this._code));
     }
@@ -34,7 +34,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
     public async Task Given取得指定範疇的AccessToken(string clientId, string scopes)
     {
         await authorize.AuthorizeAsync(
-            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUris[clientId], scope: scopes.Replace('、', ' '));
+            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUriOf(clientId), scope: scopes.Replace('、', ' '));
         this._code = QueryHelpers.ParseQuery(authorize.Location!.Query)["code"]!;
         await this.ExchangeAsync(clientId);
         Assert.Equal(200, (int)testBase.LastResponse!.StatusCode);
@@ -44,7 +44,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
     public async Task Given取得不含OfflineAccess的Code(string clientId)
     {
         await authorize.AuthorizeAsync(
-            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUris[clientId], scope: "openid profile email");
+            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUriOf(clientId), scope: "openid profile email");
         this._code = QueryHelpers.ParseQuery(authorize.Location!.Query)["code"]!;
     }
 
@@ -165,13 +165,15 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
     // 測試專用種子密鑰，與 AuthServerWebApplicationFactory 的 Auth:DemoClientSecret 一致。
     public const string TestSecret = "demo-secret-for-tests";
 
+    public Task ExchangeWithSecretAsync(string clientId, string secret) => this.ExchangeAsync(clientId, secret: secret);
+
     private Task ExchangeAsync(string clientId, string? verifier = AuthorizeSteps.Verifier, string? secret = null, string? redirectUri = null) =>
         this.PostTokenAsync(new Dictionary<string, string?>
         {
             ["grant_type"] = "authorization_code",
             ["code"] = this._code,
             ["client_id"] = clientId,
-            ["redirect_uri"] = redirectUri ?? AuthorizeSteps.RedirectUris[clientId],
+            ["redirect_uri"] = redirectUri ?? AuthorizeSteps.RedirectUriOf(clientId),
             ["code_verifier"] = verifier,
             ["client_secret"] = secret,
         });

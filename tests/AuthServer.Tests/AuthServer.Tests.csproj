@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\apps\auth-server\AuthServer.csproj" />
+    <ProjectReference Include="..\..\apps\auth-shared\AuthShared.csproj" />
   </ItemGroup>
 
 </Project>

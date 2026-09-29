@@ -1,5 +1,7 @@
 using DeveloperApi.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Reqnroll;
 using Testcontainers.PostgreSql;
 
@@ -30,6 +32,15 @@ public static class TestRunHooks
             .Options;
         await using var dbContext = new DeveloperApiDbContext(options);
         await dbContext.Database.MigrateAsync();
+
+        // OpenIddict 資料表正式環境由 auth-server 的 migration 建立；developer-api 只讀寫，測試在此自行建立。
+        var storeOptions = new DbContextOptionsBuilder<OpenIddictStoreContext>()
+            .UseNpgsql(ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .UseOpenIddict()
+            .Options;
+        await using var storeContext = new OpenIddictStoreContext(storeOptions);
+        await storeContext.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
     }
 
     [AfterTestRun]
