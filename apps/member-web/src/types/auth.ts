@@ -77,6 +77,21 @@ export interface ChangePasswordResponse {
   message: string
 }
 
+export interface ConnectedAppDto {
+  appId: string
+  appName: string
+  appIdentifier: string
+  logoUrl?: string | null
+  scopes: string[]
+  authorizedAt: string
+  lastUsedAt?: string | null
+}
+
+export interface ConnectedAppListResponse {
+  items: ConnectedAppDto[]
+  totalCount: number
+}
+
 export interface ProblemDetails {
   type: string
   title: string

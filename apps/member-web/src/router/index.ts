@@ -15,6 +15,11 @@ export const router = createRouter({
       component: () => import('@/views/MemberProfileView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/connected-apps',
+      component: () => import('@/views/ConnectedAppsView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

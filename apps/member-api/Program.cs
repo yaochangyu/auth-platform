@@ -114,6 +114,7 @@ builder.Services.AddDbContext<MemberApiDbContext>(options =>
 builder.Services.AddScoped<IHealthRepository, HealthRepository>();
 builder.Services.AddScoped<IHealthCheckHandler, HealthCheckHandler>();
 builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+builder.Services.AddScoped<IConnectedAppRepository, ConnectedAppRepository>();
 builder.Services.AddScoped<IRegisterMemberHandler, RegisterMemberHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<ILoginHandler, LoginHandler>();
@@ -121,6 +122,8 @@ builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
 builder.Services.AddScoped<IGetMemberProfileHandler, GetMemberProfileHandler>();
 builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
+builder.Services.AddScoped<IListConnectedAppsHandler, ListConnectedAppsHandler>();
+builder.Services.AddScoped<IRevokeConnectedAppHandler, RevokeConnectedAppHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddHostedService<EmailDispatchWorker>();

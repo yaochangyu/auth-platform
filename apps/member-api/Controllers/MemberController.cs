@@ -15,6 +15,8 @@ namespace MemberApi.Controllers;
 public class MemberController(
     IGetMemberProfileHandler getMemberProfileHandler,
     IChangePasswordHandler changePasswordHandler,
+    IListConnectedAppsHandler listConnectedAppsHandler,
+    IRevokeConnectedAppHandler revokeConnectedAppHandler,
     IValidator<ChangePasswordRequest> changePasswordValidator) : MemberApiControllerBase
 {
     [HttpGet("profile")]
@@ -55,6 +57,35 @@ public class MemberController(
         await this.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
         return this.Ok(new ChangePasswordResponse("密碼變更成功，已更新安全戳記並廢止其他歷史登入會話。"));
+    }
+
+    [HttpGet("connected-apps")]
+    [ProducesResponseType(typeof(ConnectedAppListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ListConnectedApps(CancellationToken cancellationToken)
+    {
+        var memberId = this.CurrentMemberId();
+        var response = await listConnectedAppsHandler.HandleAsync(memberId, cancellationToken);
+        return this.Ok(response);
+    }
+
+    [HttpDelete("connected-apps/{appId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeConnectedApp(Guid appId, CancellationToken cancellationToken)
+    {
+        var memberId = this.CurrentMemberId();
+        var outcome = await revokeConnectedAppHandler.HandleAsync(memberId, appId, cancellationToken);
+        if (outcome == RevokeConnectedAppOutcome.NotFound)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/connected-app-not-found",
+                title: "查無該已連結應用程式授權紀錄",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        return this.NoContent();
     }
 
     private Guid CurrentMemberId()

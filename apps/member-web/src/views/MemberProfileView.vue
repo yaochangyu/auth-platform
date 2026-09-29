@@ -39,6 +39,12 @@ onMounted(() => {
           <ChangePasswordForm />
         </div>
       </div>
+
+      <div class="border-t pt-6">
+        <RouterLink to="/connected-apps" class="text-sm text-muted-foreground hover:underline">
+          管理已連結的應用程式 →
+        </RouterLink>
+      </div>
     </div>
   </main>
 </template>

@@ -11,6 +11,10 @@ public class MemberApiDbContext(DbContextOptions<MemberApiDbContext> options) : 
 
     public DbSet<OutboxMessage> OutboxMessages => this.Set<OutboxMessage>();
 
+    public DbSet<ConnectedApp> ConnectedApps => this.Set<ConnectedApp>();
+
+    public DbSet<MemberGrant> MemberGrants => this.Set<MemberGrant>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Member>(builder =>
@@ -24,6 +28,21 @@ public class MemberApiDbContext(DbContextOptions<MemberApiDbContext> options) : 
             builder.HasOne(token => token.Member)
                 .WithMany()
                 .HasForeignKey(token => token.MemberId);
+        });
+
+        modelBuilder.Entity<ConnectedApp>(builder =>
+        {
+            builder.HasIndex(app => app.Identifier).IsUnique();
+        });
+
+        modelBuilder.Entity<MemberGrant>(builder =>
+        {
+            builder.HasOne(grant => grant.Member)
+                .WithMany()
+                .HasForeignKey(grant => grant.MemberId);
+            builder.HasOne(grant => grant.ConnectedApp)
+                .WithMany()
+                .HasForeignKey(grant => grant.ConnectedAppId);
         });
     }
 }
