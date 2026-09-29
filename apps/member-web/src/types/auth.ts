@@ -101,3 +101,13 @@ export interface ProblemDetails {
   failedLoginAttempts?: number
   lockoutEndAt?: string
 }
+
+export interface ConsentScopeDto {
+  name: string
+  description: string
+}
+
+export interface ConsentDetailsResponse {
+  applicationName: string
+  scopes: ConsentScopeDto[]
+}

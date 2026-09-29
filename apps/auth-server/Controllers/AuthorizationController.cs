@@ -1,8 +1,8 @@
 using System.Security.Claims;
+using AuthServer.Infrastructure;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
@@ -12,7 +12,11 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AuthServer.Controllers;
 
-public class AuthorizationController(IOpenIddictApplicationManager applications, IConfiguration configuration) : Controller
+public class AuthorizationController(
+    IOpenIddictApplicationManager applications,
+    IOpenIddictAuthorizationManager authorizations,
+    ConsentTicketService tickets,
+    IConfiguration configuration) : Controller
 {
     [HttpGet("~/connect/authorize")]
     public async Task<IActionResult> Authorize()
@@ -37,34 +41,53 @@ public class AuthorizationController(IOpenIddictApplicationManager applications,
 
             var loginUrl = configuration["Auth:MemberLoginUrl"] ?? "https://member.1111.com.tw/login";
 
-            // 經 Proxy 時 Host 會是內部位址，已設定對外 issuer 時以它為準組出回跳網址。
-            var returnUrl = configuration["Auth:Issuer"] is { Length: > 0 } publicBase
-                ? publicBase.TrimEnd('/') + this.Request.PathBase + this.Request.Path + this.Request.QueryString
-                : this.Request.GetEncodedUrl();
+            var returnUrl = PublicUrl.Absolute(this.Request, configuration, this.Request.Path + this.Request.QueryString.Value);
             return this.Redirect(QueryHelpers.AddQueryString(loginUrl, "returnUrl", returnUrl));
         }
 
         var application = await applications.FindByClientIdAsync(request.ClientId!)
                           ?? throw new InvalidOperationException("Client 應已由 OpenIddict 驗證存在。");
 
-        // 第三方 Client 的 Consent 流程於 Issue #13 實作，此處先不核發 Authorization Code。
+        var memberId = session.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        string? authorizationId = null;
+
         if (await applications.GetConsentTypeAsync(application) != ConsentTypes.Implicit)
         {
-            return this.Forbid(
-                new AuthenticationProperties(new Dictionary<string, string?>
+            // 第三方 Client：找得到會員先前同意過（涵蓋本次範疇）的授權紀錄才免詢問，否則進入 Consent 流程。
+            var existing = await authorizations.FindAsync(
+                memberId, (await applications.GetIdAsync(application))!, Statuses.Valid, AuthorizationTypes.Permanent, [.. request.GetScopes()])
+                .FirstOrDefaultAsync();
+            if (existing is null)
+            {
+                // OIDC：prompt=none 不得出現同意畫面，須以 consent_required 回報。
+                if (request.HasPromptValue(PromptValues.None))
                 {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.ConsentRequired,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "此應用程式需要會員授權同意。",
-                }),
-                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                    return this.Forbid(
+                        new AuthenticationProperties(new Dictionary<string, string?>
+                        {
+                            [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.ConsentRequired,
+                            [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "此應用程式需要會員授權同意。",
+                        }),
+                        OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+                }
+
+                var consentId = tickets.Issue(
+                    Guid.Parse(memberId), request.ClientId!, request.RedirectUri!, request.State, [.. request.GetScopes()],
+                    this.Request.QueryString.Value ?? string.Empty);
+                var consentUrl = configuration["Auth:MemberConsentUrl"] ?? "https://member.1111.com.tw/oauth/consent";
+                return this.Redirect(QueryHelpers.AddQueryString(consentUrl, "consent_id", consentId));
+            }
+
+            authorizationId = await authorizations.GetIdAsync(existing);
         }
 
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
-        identity.SetClaim(Claims.Subject, session.Principal!.FindFirstValue(ClaimTypes.NameIdentifier));
+        identity.SetClaim(Claims.Subject, memberId);
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
+        principal.SetAuthorizationId(authorizationId);
         principal.SetDestinations(_ => [Destinations.AccessToken, Destinations.IdentityToken]);
 
         return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);

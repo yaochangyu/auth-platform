@@ -16,6 +16,11 @@ export const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/oauth/consent',
+      component: () => import('@/views/ConsentView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/connected-apps',
       component: () => import('@/views/ConnectedAppsView.vue'),
       meta: { requiresAuth: true },

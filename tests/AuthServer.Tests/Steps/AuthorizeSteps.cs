@@ -16,7 +16,7 @@ namespace AuthServer.Tests.Steps;
 public class AuthorizeSteps(AuthServerTestBase testBase)
 {
     private const string State = "state-12345";
-    private static readonly Dictionary<string, string> RedirectUris = new()
+    public static readonly Dictionary<string, string> RedirectUris = new()
     {
         ["member-web-spa"] = "https://member.1111.com.tw/oauth/callback",
         ["demo-third-party-app"] = "https://demo.1111.com.tw/callback",
@@ -26,17 +26,28 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
     private string? _cookie;
     private string _requestUrl = string.Empty;
     private Uri? _location;
+
+    public Guid MemberId => this._memberId;
+
+    public string? Cookie => this._cookie;
+
+    public Uri? Location => this._location;
     private string _redirectUri = string.Empty;
     private string _body = string.Empty;
 
     [Given("會員已登入且持有有效的主網域 Session Cookie")]
     public async Task Given會員已登入()
     {
-        await this.SetSecurityStampAsync(insert: true, "stamp-1");
+        this._cookie = await this.CreateSessionCookieAsync(this._memberId);
+    }
+
+    public async Task<string> CreateSessionCookieAsync(Guid memberId)
+    {
+        await this.SetSecurityStampAsync(memberId, insert: true, "stamp-1");
 
         var identity = new ClaimsIdentity(
             [
-                new Claim(ClaimTypes.NameIdentifier, this._memberId.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, memberId.ToString()),
                 new Claim(ClaimTypes.Email, "member@example.com"),
                 new Claim(ClaimTypes.Name, "測試會員"),
                 new Claim("security_stamp", "stamp-1"),
@@ -47,13 +58,14 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         var options = testBase.Factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(CookieAuthenticationDefaults.AuthenticationScheme);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), CookieAuthenticationDefaults.AuthenticationScheme);
-        this._cookie = $"{options.Cookie.Name}={options.TicketDataFormat.Protect(ticket)}";
+        return $"{options.Cookie.Name}={options.TicketDataFormat.Protect(ticket)}";
     }
 
     [Given("該會員的 Security Stamp 已被更新")]
-    public Task Given該會員的SecurityStamp已被更新() => this.SetSecurityStampAsync(insert: false, "stamp-2");
+    public Task Given該會員的SecurityStamp已被更新() => this.SetSecurityStampAsync(this._memberId, insert: false, "stamp-2");
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數發起授權請求")]
+    [When("再次以 Client \"(.*)\" 及合法的 PKCE 參數發起授權請求")]
     public Task When合法Pkce(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId]);
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數並帶 prompt=none 發起授權請求")]
@@ -104,7 +116,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
     [Then("回應不應包含 Location 標頭")]
     public void Then無Location() => Assert.Null(testBase.LastResponse!.Headers.Location);
 
-    private async Task AuthorizeAsync(string clientId, string? challenge, string? method, string redirectUri, string? prompt = null)
+    public async Task AuthorizeAsync(string clientId, string? challenge, string? method, string redirectUri, string? prompt = null)
     {
         this._redirectUri = redirectUri;
         var query = new Dictionary<string, string?>
@@ -132,10 +144,10 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         this._body = await testBase.LastResponse.Content.ReadAsStringAsync();
     }
 
-    private static string Challenge() =>
+    public static string Challenge() =>
         WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes("test-code-verifier-with-enough-entropy-1234567890")));
 
-    private async Task SetSecurityStampAsync(bool insert, string stamp)
+    private async Task SetSecurityStampAsync(Guid memberId, bool insert, string stamp)
     {
         await using var connection = new NpgsqlConnection(TestRunHooks.ConnectionString);
         await connection.OpenAsync();
@@ -143,7 +155,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         command.CommandText = insert
             ? "insert into members (id, security_stamp) values (@id, @stamp)"
             : "update members set security_stamp = @stamp where id = @id";
-        command.Parameters.AddWithValue("id", this._memberId);
+        command.Parameters.AddWithValue("id", memberId);
         command.Parameters.AddWithValue("stamp", stamp);
         await command.ExecuteNonQueryAsync();
     }

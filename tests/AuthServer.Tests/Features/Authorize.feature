@@ -51,10 +51,3 @@ Feature: OAuth 2.1 授權碼模式 (PKCE) 與主網域 Session Cookie SSO 橋接
     When 以 Client "member-web-spa" 發起授權請求且 redirect_uri 為未登記的網址
     Then 回應狀態碼應為 400
     And 回應不應包含 Location 標頭
-
-  Scenario: 第三方 Client 尚未取得 Consent 前不自動核發 Authorization Code
-    Given 會員已登入且持有有效的主網域 Session Cookie
-    When 以 Client "demo-third-party-app" 及合法的 PKCE 參數發起授權請求
-    Then 回應狀態碼應為 302
-    And 重定向網址的 error 參數應為 "consent_required"
-    And 重定向網址不應帶有 Authorization Code
