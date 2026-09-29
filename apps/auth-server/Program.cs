@@ -115,7 +115,7 @@ using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AuthServerDbContext>().Database.MigrateAsync();
     await ClientSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>(), builder.Configuration["Auth:DemoClientSecret"]);
+        scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>(), builder.Configuration["Auth:DemoClientSecret"], builder.Configuration);
 }
 
 if (string.IsNullOrEmpty(builder.Configuration["Auth:DataProtectionKeyDirectory"]))
@@ -127,6 +127,7 @@ if (string.IsNullOrEmpty(builder.Configuration["Auth:DataProtectionKeyDirectory"
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 app.Run();
 

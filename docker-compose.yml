@@ -1,3 +1,14 @@
+# 本機/驗收用的完整編排：Postgres + Member/Auth/Developer/Admin 四組後端與三個前端。
+# 對外網域以 /etc/hosts 模擬（見 docs/oauth-e2e-verification.md），Session Cookie 的 Domain 為 .1111.com.tw，
+# 各站以不同埠號區分（Cookie 不分埠號，所以共用同一個 SSO Session）：
+#   member.1111.com.tw:8080  會員中心      auth.1111.com.tw:8091  授權伺服器
+#   developer.1111.com.tw:8092  開發者後台  admin.1111.com.tw:8093  管理後台
+# 容器環境沒有 TLS 終止，Auth__RequireHttps 設為 false；正式環境維持預設 true。
+
+# 資料庫帳密僅供本機/驗收使用，不要用於正式環境。
+x-shared-db: &shared-db
+  Host=postgres;Database=member_api;Username=member_api;Password=member_api
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,9 +28,13 @@ services:
     build:
       context: apps/member-api
     environment:
-      ConnectionStrings__MemberApiDb: "Host=postgres;Database=member_api;Username=member_api;Password=member_api"
+      ConnectionStrings__MemberApiDb: *shared-db
       Auth__CookieDomain: ".1111.com.tw"
       Auth__RequireHttps: "false"
+      # 與 auth-server、developer-api 共用 Data Protection 金鑰環，auth-server 才解得開這裡簽發的 Session Cookie。
+      Auth__DataProtectionKeyDirectory: /keys/dp
+    volumes:
+      - dp-keys:/keys/dp
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,5 +53,106 @@ services:
     ports:
       - "8080:80"
 
+  auth-server:
+    build:
+      context: .
+      dockerfile: apps/auth-server/Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8091
+      ConnectionStrings__AuthServerDb: *shared-db
+      Auth__RequireHttps: "false"
+      # 對外的 issuer；容器之間也以這個網域（見下方 aliases）取得 Discovery 與 JWKS，Token 內的 iss 才會一致。
+      Auth__Issuer: http://auth.1111.com.tw:8091
+      Auth__MemberLoginUrl: http://member.1111.com.tw:8080/login
+      Auth__MemberConsentUrl: http://member.1111.com.tw:8080/oauth/consent
+      Auth__KeyDirectory: /keys/auth
+      Auth__DataProtectionKeyDirectory: /keys/dp
+      # 種子 Client 在容器環境使用 http 與非標準埠號的回呼網址。
+      Auth__SeedRedirectUris__member-web-spa__0: http://member.1111.com.tw:8080/oauth/callback
+      Auth__SeedRedirectUris__developer-web__0: http://developer.1111.com.tw:8092/oauth/callback
+      Auth__SeedRedirectUris__admin-web__0: http://admin.1111.com.tw:8093/oauth/callback
+    volumes:
+      - dp-keys:/keys/dp
+      - auth-keys:/keys/auth
+    networks:
+      default:
+        aliases:
+          - auth.1111.com.tw
+    depends_on:
+      member-api:
+        condition: service_healthy
+    ports:
+      - "8091:8091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  developer-api:
+    build:
+      context: .
+      dockerfile: apps/developer-api/Dockerfile
+    environment:
+      ConnectionStrings__DeveloperApiDb: *shared-db
+      Auth__Authority: http://auth.1111.com.tw:8091
+      Auth__RequireHttps: "false"
+      # API Secret 以 Data Protection 加密保存，金鑰環必須持久化，否則重建容器後所有 API Key 都無法驗證。
+      Auth__DataProtectionKeyDirectory: /keys/dp
+    volumes:
+      - dp-keys:/keys/dp
+    depends_on:
+      auth-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  developer-web:
+    build:
+      context: apps/developer-web
+      args:
+        VITE_AUTH_SERVER_URL: http://auth.1111.com.tw:8091
+    depends_on:
+      developer-api:
+        condition: service_healthy
+    ports:
+      - "8092:80"
+
+  admin-api:
+    build:
+      context: .
+      dockerfile: apps/admin-api/Dockerfile
+    environment:
+      ConnectionStrings__AdminApiDb: *shared-db
+      Auth__Authority: http://auth.1111.com.tw:8091
+      Auth__RequireHttps: "false"
+      # 稽核紀錄的客戶端 IP：信任前端 nginx（Docker 預設網段）轉送的 X-Forwarded-For。
+      Auth__TrustedNetworks__0: 172.16.0.0/12
+    depends_on:
+      # 斷路器要動到 developer-api（專案、API Key）與 auth-server（OpenIddict）的資料表，兩者都要先完成 migration。
+      developer-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  admin-web:
+    build:
+      context: apps/admin-web
+      args:
+        VITE_AUTH_SERVER_URL: http://auth.1111.com.tw:8091
+    depends_on:
+      admin-api:
+        condition: service_healthy
+    ports:
+      - "8093:80"
+
 volumes:
   postgres-data:
+  dp-keys:
+  auth-keys:

@@ -22,6 +22,12 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.KnownProxies.Add(IPAddress.Parse(proxy));
     }
+
+    // 容器編排中前端 nginx 的位址不固定，改以網段（CIDR）信任，例如 Docker 預設的 172.16.0.0/12。
+    foreach (var network in builder.Configuration.GetSection("Auth:TrustedNetworks").Get<string[]>() ?? [])
+    {
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+    }
 });
 
 builder.Services.AddControllers()
@@ -75,6 +81,7 @@ app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 using (var scope = app.Services.CreateScope())
 {

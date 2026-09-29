@@ -1,5 +1,7 @@
 # 全流程聯調與容器化驗收
 
+> 本文只涵蓋 Phase 1（會員中心）。完整平台（授權伺服器、開發者後台、管理後台）的啟動與全鏈路驗收見 [`oauth-e2e-verification.md`](oauth-e2e-verification.md)。
+
 ## 1. 啟動
 
 ```bash

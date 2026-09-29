@@ -9,7 +9,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --no-create-home --shell /usr/sbin/nologin appuser
+    && useradd --no-create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /keys/dp \
+    && chown -R appuser /keys
 COPY --from=build /app .
 USER appuser
 ENV ASPNETCORE_URLS=http://+:8080
