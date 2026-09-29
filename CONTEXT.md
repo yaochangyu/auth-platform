@@ -43,3 +43,37 @@ _避免使用_: Job (工作), Task (任務), MailQueueItem (郵件佇列項目)
 **Connected App (已連結的應用程式)**:
 經由會員本人明確同意授權，得以代表該會員存取特定個人資源之第三方應用程式。
 _避免使用_: Integration (整合), ThirdPartyClient (第三方客戶端), ExternalApp (外部應用程式)
+
+**OAuth Client (授權客戶端)**:
+在授權伺服器註冊且擁有唯一 Client ID，代表特定應用系統（Web SPA、原生 App 或後端服務）請求身分或資源存取授權之實體。
+_避免使用_: Consumer (消費者), Caller (呼叫方), System (系統)
+
+**Scope (存取範疇)**:
+定義 OAuth Client 被允許代表會員讀取或操作之資源權限顆粒度（如 `openid`, `profile`, `email`）。
+_避免使用_: Permission (權限), Role (角色), Privilege (特權)
+
+**Consent (授權同意)**:
+會員在授權伺服器呈現之介面上，針對 OAuth Client 所要求之 Scope 進行知情審閱並明確點選同意授權之動作與狀態。
+_避免使用_: Approval (核准), Permit (許可), Allow (允許)
+
+**Consent Ticket (授權同意票證)**:
+由授權伺服器以安全加密簽章封裝的短效（如 5 分鐘）、單次使用的上下文憑證（`consent_id`），安全地傳遞給前端以呈現同意畫面，防範重放與授權參數竄改。
+_避免使用_: ConsentToken (同意權杖), RequestToken (請求權杖), FlowId (流程ID)
+
+
+**Authorization Code (授權碼)**:
+由授權伺服器發放之短效（如 1~5 分鐘）、單次使用且強制綁定 PKCE 查驗碼之臨時代碼，供客戶端後端安全換發權杖。
+_避免使用_: AuthToken (認證權杖), GrantCode (許可碼), TemporaryKey (臨時金鑰)
+
+**Access Token (存取權杖)**:
+代表特定授權範圍且帶有數位簽章之短效憑證（JWT），客戶端以此向資源伺服器證明存取合法性。
+_避免使用_: BearerKey (持有者金鑰), SessionToken (會話權杖)
+
+**ID Token (身分權杖)**:
+符合 OpenID Connect 規範之 JSON Web Token (JWT)，向客戶端證明當前已認證自然人會員的身分資訊（如 `sub`, `email`, `nickname` 等 Claims）。
+_避免使用_: IdentityJwt (身分JWT), UserProfileToken (個人資料權杖)
+
+**Refresh Token (重新整理權杖)**:
+長效憑證，供受信任之客戶端在 Access Token 過期時向授權伺服器輪替換發新的 Access Token，而無需會員重複進行互動式登入。
+_避免使用_: RenewToken (續約權杖), LongLivedToken (長效權杖)
+
