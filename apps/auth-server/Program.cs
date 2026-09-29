@@ -60,6 +60,7 @@ builder.Services.AddOpenIddict()
     {
         options.SetAuthorizationEndpointUris("/connect/authorize")
             .SetTokenEndpointUris("/connect/token")
+            .SetUserInfoEndpointUris("/connect/userinfo")
             .SetConfigurationEndpointUris("/.well-known/openid-configuration")
             .SetJsonWebKeySetEndpointUris("/.well-known/jwks.json");
 
@@ -87,11 +88,16 @@ builder.Services.AddOpenIddict()
             .AddEncryptionKey(KeyStore.LoadOrCreateEncryptionKey(keyDirectory))
             .DisableAccessTokenEncryption();
 
-        var aspNetCore = options.UseAspNetCore().EnableAuthorizationEndpointPassthrough().EnableTokenEndpointPassthrough();
+        var aspNetCore = options.UseAspNetCore().EnableAuthorizationEndpointPassthrough().EnableTokenEndpointPassthrough().EnableUserInfoEndpointPassthrough();
         if (!requireHttps)
         {
             aspNetCore.DisableTransportSecurityRequirement();
         }
+    })
+    .AddValidation(options =>
+    {
+        options.UseLocalServer();
+        options.UseAspNetCore();
     });
 
 var app = builder.Build();

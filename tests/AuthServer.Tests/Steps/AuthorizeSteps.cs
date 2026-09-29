@@ -15,6 +15,13 @@ namespace AuthServer.Tests.Steps;
 [Binding]
 public class AuthorizeSteps(AuthServerTestBase testBase)
 {
+    public const string MemberEmail = "member@example.com";
+    public const string MemberDisplayName = "測試會員";
+
+    // 測試會員：建立於 2026-01-01，Email 驗證於 2026-01-02 03:04:05；updated_at 取兩者較晚者。
+    public static readonly DateTimeOffset MemberCreatedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset MemberUpdatedAt = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+
     public const string Verifier = "test-code-verifier-with-enough-entropy-1234567890";
 
     private const string State = "state-12345";
@@ -51,8 +58,8 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         var identity = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, memberId.ToString()),
-                new Claim(ClaimTypes.Email, "member@example.com"),
-                new Claim(ClaimTypes.Name, "測試會員"),
+                new Claim(ClaimTypes.Email, MemberEmail),
+                new Claim(ClaimTypes.Name, MemberDisplayName),
                 new Claim("security_stamp", "stamp-1"),
             ],
             CookieAuthenticationDefaults.AuthenticationScheme);
@@ -156,10 +163,17 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = insert
-            ? "insert into members (id, security_stamp) values (@id, @stamp)"
+            ? "insert into members (id, security_stamp, email, display_name, email_verified_at, created_at) values (@id, @stamp, @email, @name, @verifiedAt, @createdAt)"
             : "update members set security_stamp = @stamp where id = @id";
         command.Parameters.AddWithValue("id", memberId);
         command.Parameters.AddWithValue("stamp", stamp);
+        if (insert)
+        {
+            command.Parameters.AddWithValue("email", MemberEmail);
+            command.Parameters.AddWithValue("name", MemberDisplayName);
+            command.Parameters.AddWithValue("verifiedAt", MemberUpdatedAt);
+            command.Parameters.AddWithValue("createdAt", MemberCreatedAt);
+        }
         await command.ExecuteNonQueryAsync();
     }
 }

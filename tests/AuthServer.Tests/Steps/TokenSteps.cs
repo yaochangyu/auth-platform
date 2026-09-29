@@ -26,6 +26,20 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
         Assert.False(string.IsNullOrEmpty(this._code));
     }
 
+    public string InitialAccessToken { get; private set; } = string.Empty;
+
+    public string AccessToken => this._token.GetProperty("access_token").GetString()!;
+
+    [Given("已以 Client \"(.*)\" 取得僅含範疇 \"(.*)\" 的 Access Token")]
+    public async Task Given取得指定範疇的AccessToken(string clientId, string scopes)
+    {
+        await authorize.AuthorizeAsync(
+            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUris[clientId], scope: scopes.Replace('、', ' '));
+        this._code = QueryHelpers.ParseQuery(authorize.Location!.Query)["code"]!;
+        await this.ExchangeAsync(clientId);
+        Assert.Equal(200, (int)testBase.LastResponse!.StatusCode);
+    }
+
     [Given("已以 Client \"(.*)\" 取得不含 offline_access 的 Authorization Code")]
     public async Task Given取得不含OfflineAccess的Code(string clientId)
     {
@@ -40,6 +54,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
         await this.Given取得Code(clientId);
         await this.ExchangeAsync(clientId);
         Assert.Equal(200, (int)testBase.LastResponse!.StatusCode);
+        this.InitialAccessToken = this.AccessToken;
     }
 
     [Given("以 Client \"(.*)\" 及正確的 code_verifier 兌換 Token")]
@@ -72,6 +87,7 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
         await this.RefreshAsync(this._refreshToken);
     }
 
+    [Given("重複使用已被輪替的舊 Refresh Token 續約")]
     [When("重複使用已被輪替的舊 Refresh Token 續約")]
     public Task When重複使用舊Token() => this.RefreshAsync(this._rotatedRefreshToken);
 
