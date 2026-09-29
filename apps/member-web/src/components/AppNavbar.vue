@@ -10,7 +10,9 @@ const { loginResult, logoutAndRedirect } = useAuth()
     <span class="font-semibold text-card-foreground">會員中心</span>
 
     <div v-if="loginResult" class="flex items-center gap-3">
-      <span class="text-sm text-muted-foreground">{{ loginResult.email }}</span>
+      <RouterLink to="/member" class="text-sm text-muted-foreground hover:underline">
+        {{ loginResult.email }}
+      </RouterLink>
       <Button variant="outline" size="sm" @click="logoutAndRedirect">登出</Button>
     </div>
   </header>

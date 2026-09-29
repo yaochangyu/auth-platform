@@ -72,8 +72,8 @@ export function useAuth() {
   async function loginAndRedirect(credentials: Pick<LoginRequest, 'email' | 'password'>) {
     const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') ?? undefined
     const ok = await login({ ...credentials, returnUrl })
-    if (ok && loginResult.value?.returnUrl) {
-      window.location.assign(loginResult.value.returnUrl)
+    if (ok) {
+      window.location.assign(loginResult.value?.returnUrl ?? '/member')
     }
     return ok
   }

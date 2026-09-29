@@ -30,6 +30,7 @@ public class VerifyEmailHandler(IMemberRepository memberRepository, TimeProvider
 
         token.UsedAt = now;
         member.Status = MemberStatus.Active;
+        member.EmailVerifiedAt = now;
 
         await memberRepository.SaveChangesAsync(cancellationToken);
 

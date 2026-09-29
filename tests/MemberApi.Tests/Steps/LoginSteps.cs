@@ -90,7 +90,9 @@ public class LoginSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioCon
     [Given("使用者已成功登入並取得有效的 Session Cookie")]
     public async Task Given使用者已成功登入並取得有效的SessionCookie()
     {
-        const string email = "login-logout@1111.com.tw";
+        // ponytail: 每次呼叫都用唯一 Email，避免被其他情境（甚至其他 Feature、可能並行執行）
+        // 共用同一筆會員時，密碼或 SecurityStamp 被異動而污染這個情境的前置假設。
+        var email = $"login-logout-{Guid.NewGuid():N}@1111.com.tw";
         const string password = "P@ssw0rd2026!";
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
         await this.PostLoginAsync(email, password, null);

@@ -28,6 +28,7 @@ builder.Services.AddScoped<IValidator<VerifyEmailRequest>, VerifyEmailRequestVal
 builder.Services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
 builder.Services.AddScoped<IValidator<ForgotPasswordRequest>, ForgotPasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<ResetPasswordRequest>, ResetPasswordRequestValidator>();
+builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -118,6 +119,8 @@ builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<ILoginHandler, LoginHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
+builder.Services.AddScoped<IGetMemberProfileHandler, GetMemberProfileHandler>();
+builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddHostedService<EmailDispatchWorker>();

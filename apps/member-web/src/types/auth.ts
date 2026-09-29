@@ -57,6 +57,26 @@ export interface ResetPasswordResponse {
   message: string
 }
 
+export interface MemberProfileResponse {
+  id: string
+  email: string
+  displayName: string
+  status: MemberStatus
+  emailVerifiedAt?: string | null
+  createdAt: string
+  updatedAt?: string | null
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface ChangePasswordResponse {
+  message: string
+}
+
 export interface ProblemDetails {
   type: string
   title: string

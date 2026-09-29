@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FluentValidation;
 using FluentValidation.Results;
 using MemberApi.Contracts;
@@ -24,7 +23,7 @@ public class AuthController(
     IValidator<VerifyEmailRequest> verifyEmailValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<ForgotPasswordRequest> forgotPasswordValidator,
-    IValidator<ResetPasswordRequest> resetPasswordValidator) : ControllerBase
+    IValidator<ResetPasswordRequest> resetPasswordValidator) : MemberApiControllerBase
 {
     private const string ForgotPasswordAcceptedMessage = "若該信箱已在平台註冊，系統將寄出重設密碼說明信件，請於 15 分鐘內完成重設。";
     [HttpPost("register")]
@@ -136,17 +135,8 @@ public class AuthController(
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
-        var member = result.Member!;
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, member.Id.ToString()),
-            new(ClaimTypes.Email, member.Email),
-            new(ClaimTypes.Name, member.DisplayName),
-            new("status", member.Status.ToString()),
-            new(SecurityStampClaimTypes.ClaimType, member.SecurityStamp),
-        };
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        await this.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        var principal = MemberClaimsFactory.Build(result.Member!, CookieAuthenticationDefaults.AuthenticationScheme);
+        await this.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
         return this.Ok(result.Response);
     }
@@ -214,26 +204,4 @@ public class AuthController(
         };
     }
 
-    private ActionResult ToValidationProblem(ValidationResult result, string title)
-    {
-        var modelState = new ModelStateDictionary();
-        foreach (var error in result.Errors)
-        {
-            modelState.AddModelError(ToCamelCase(error.PropertyName), error.ErrorMessage);
-        }
-
-        var problemResult = (ObjectResult)this.ValidationProblem(modelState);
-        if (problemResult.Value is ValidationProblemDetails problemDetails)
-        {
-            problemDetails.Title = title;
-            problemDetails.Type = "https://auth.1111.com.tw/errors/validation-failed";
-        }
-
-        return problemResult;
-    }
-
-    private static string ToCamelCase(string value)
-    {
-        return string.IsNullOrEmpty(value) ? value : char.ToLowerInvariant(value[0]) + value[1..];
-    }
 }
