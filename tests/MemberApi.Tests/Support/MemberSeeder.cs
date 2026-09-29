@@ -23,6 +23,11 @@ public static class MemberSeeder
         var existing = await dbContext.Members.SingleOrDefaultAsync(m => m.Email == email);
         if (existing is not null)
         {
+            // Given 步驟語意是「確保存在這個狀態的會員」，每次呼叫都應重設暫時性的鎖定狀態，
+            // 否則同一 Email 被 Scenario Outline 的不同 Example 重複使用時，鎖定計數會不當累積。
+            existing.FailedLoginAttempts = 0;
+            existing.LockoutEndAt = null;
+            await dbContext.SaveChangesAsync();
             return existing;
         }
 

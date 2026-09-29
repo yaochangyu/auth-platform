@@ -83,6 +83,7 @@ public class AuthController(
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(LockoutProblemDetails), StatusCodes.Status423Locked)]
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await loginValidator.ValidateAsync(request, cancellationToken);
@@ -98,6 +99,19 @@ public class AuthController(
                 type: "https://auth.1111.com.tw/errors/invalid-credentials",
                 title: "Email 或密碼不正確",
                 statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        if (result.Outcome == LoginOutcome.AccountLocked)
+        {
+            var lockoutProblem = new LockoutProblemDetails
+            {
+                Type = "https://auth.1111.com.tw/errors/account-locked",
+                Title = "帳號已因連續登入失敗遭暫時鎖定",
+                Status = StatusCodes.Status423Locked,
+                FailedLoginAttempts = result.FailedLoginAttempts!.Value,
+                LockoutEndAt = result.LockoutEndAt,
+            };
+            return new ObjectResult(lockoutProblem) { StatusCode = StatusCodes.Status423Locked };
         }
 
         if (result.Outcome == LoginOutcome.MemberPending)

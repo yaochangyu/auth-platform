@@ -29,7 +29,13 @@ function onSubmit() {
       <Input id="password" v-model="form.password" type="password" required />
     </div>
 
-    <p v-if="error" class="text-sm text-destructive">{{ error.title }}</p>
+    <div v-if="error?.status === 423" class="text-sm text-destructive">
+      <p>{{ error.title }}</p>
+      <p v-if="error.lockoutEndAt">
+        請於 {{ new Date(error.lockoutEndAt).toLocaleTimeString() }} 後再試一次。
+      </p>
+    </div>
+    <p v-else-if="error" class="text-sm text-destructive">{{ error.title }}</p>
 
     <Button type="submit" class="w-full" :disabled="isSubmitting">
       {{ isSubmitting ? '登入中...' : '登入' }}

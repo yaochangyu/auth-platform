@@ -45,4 +45,6 @@ export interface ProblemDetails {
   status: number
   detail?: string
   errors?: Record<string, string[]>
+  failedLoginAttempts?: number
+  lockoutEndAt?: string
 }

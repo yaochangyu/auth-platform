@@ -9,6 +9,12 @@ public enum LoginOutcome
     InvalidCredentials,
     MemberPending,
     MemberSuspended,
+    AccountLocked,
 }
 
-public record LoginResult(LoginOutcome Outcome, LoginResponse? Response, Member? Member);
+public record LoginResult(
+    LoginOutcome Outcome,
+    LoginResponse? Response,
+    Member? Member,
+    int? FailedLoginAttempts = null,
+    DateTimeOffset? LockoutEndAt = null);

@@ -10,7 +10,7 @@ using Reqnroll;
 namespace MemberApi.Tests.Steps;
 
 [Binding]
-public class LoginSteps(PostgreSqlTestBase testBase)
+public class LoginSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioContext)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -25,18 +25,28 @@ public class LoginSteps(PostgreSqlTestBase testBase)
     public async Task Given系統已存在一筆狀態為Active的會員EmailPassword(string email, string password)
     {
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
+        this.RememberCredentials(email, password);
     }
 
     [Given("系統已存在一筆狀態為 Pending 的會員，Email 為 \"([^\"]*)\"，密碼為 \"([^\"]*)\"")]
     public async Task Given系統已存在一筆狀態為Pending的會員EmailPassword(string email, string password)
     {
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Pending, password);
+        this.RememberCredentials(email, password);
     }
 
     [Given("系統已存在一筆狀態為 Suspended 的會員，Email 為 \"([^\"]*)\"，密碼為 \"([^\"]*)\"")]
     public async Task Given系統已存在一筆狀態為Suspended的會員EmailPassword(string email, string password)
     {
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Suspended, password);
+        this.RememberCredentials(email, password);
+    }
+
+    // 讓其他 Steps 類別（例如 LockoutSteps）能在同一情境內取得目前操作對象的帳密，不需重複宣告相同的 Given 文字。
+    private void RememberCredentials(string email, string password)
+    {
+        scenarioContext.Set(email, "email");
+        scenarioContext.Set(password, "password");
     }
 
     [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 呼叫登入 API")]
@@ -54,19 +64,20 @@ public class LoginSteps(PostgreSqlTestBase testBase)
     [Then("回應標頭 Set-Cookie 應包含 \"([^\"]*)\"")]
     public void Then回應標頭SetCookie應包含(string expectedFragment)
     {
-        Assert.Contains(expectedFragment, this.GetSetCookieHeader(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedFragment, GetSetCookieHeader(testBase.LastResponse!), StringComparison.OrdinalIgnoreCase);
     }
 
     [Then("回應標頭 Set-Cookie 應包含過期時間 \"([^\"]*)\"")]
     public void Then回應標頭SetCookie應包含過期時間(string expectedFragment)
     {
-        Assert.Contains(expectedFragment, this.GetSetCookieHeader(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedFragment, GetSetCookieHeader(testBase.LastResponse!), StringComparison.OrdinalIgnoreCase);
     }
 
     [Then("回應不應包含 Set-Cookie 標頭")]
     public void Then回應不應包含SetCookie標頭()
     {
-        Assert.False(this._response.Headers.Contains("Set-Cookie"));
+        Assert.NotNull(testBase.LastResponse);
+        Assert.False(testBase.LastResponse!.Headers.Contains("Set-Cookie"));
     }
 
     [Then("回應內容的 returnUrl 應為 \"([^\"]*)\"")]
@@ -83,7 +94,7 @@ public class LoginSteps(PostgreSqlTestBase testBase)
         const string password = "P@ssw0rd2026!";
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
         await this.PostLoginAsync(email, password, null);
-        this._sessionCookie = this.GetSetCookieHeader().Split(';')[0].Trim();
+        this._sessionCookie = GetSetCookieHeader(this._response).Split(';')[0].Trim();
     }
 
     [When("使用者攜帶該 Session Cookie 呼叫登出 API")]
@@ -100,7 +111,7 @@ public class LoginSteps(PostgreSqlTestBase testBase)
     {
         this._response = await testBase.Client.PostAsync("/api/v1/auth/logout", content: null);
         testBase.LastResponse = this._response;
-        testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>(JsonOptions);
+        testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<MemberApi.Tests.Support.ProblemDetailsPayload>(JsonOptions);
     }
 
     private async Task PostLoginAsync(string email, string password, string? returnUrl)
@@ -115,13 +126,13 @@ public class LoginSteps(PostgreSqlTestBase testBase)
         }
         else
         {
-            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>(JsonOptions);
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<MemberApi.Tests.Support.ProblemDetailsPayload>(JsonOptions);
         }
     }
 
-    private string GetSetCookieHeader()
+    private static string GetSetCookieHeader(HttpResponseMessage response)
     {
-        Assert.True(this._response.Headers.TryGetValues("Set-Cookie", out var values));
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var values));
         return string.Join("; ", values!);
     }
 }

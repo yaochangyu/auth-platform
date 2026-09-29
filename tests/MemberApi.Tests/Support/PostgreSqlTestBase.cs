@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace MemberApi.Tests.Support;
@@ -15,9 +14,11 @@ public class PostgreSqlTestBase
 
     public MemberApiWebApplicationFactory Factory => this._factory!;
 
+    public Microsoft.Extensions.Time.Testing.FakeTimeProvider TimeProvider => this._factory!.TimeProvider;
+
     public HttpResponseMessage? LastResponse { get; set; }
 
-    public ValidationProblemDetails? LastProblemDetails { get; set; }
+    public ProblemDetailsPayload? LastProblemDetails { get; set; }
 
     public Task StartAsync()
     {

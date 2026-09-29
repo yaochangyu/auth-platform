@@ -7,7 +7,6 @@ using MemberApi.Entities;
 using MemberApi.Infrastructure.Persistence;
 using MemberApi.Security;
 using MemberApi.Tests.Support;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
@@ -115,7 +114,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     public void Then錯誤內容應包含欄位的錯誤訊息(string field)
     {
         Assert.NotNull(testBase.LastProblemDetails);
-        Assert.True(testBase.LastProblemDetails!.Errors.ContainsKey(field));
+        Assert.True(testBase.LastProblemDetails?.Errors?.ContainsKey(field) ?? false);
     }
 
     [Then("該會員的密碼雜湊應維持原始值未被覆蓋")]
@@ -148,7 +147,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         }
         else
         {
-            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<MemberApi.Tests.Support.ProblemDetailsPayload>(JsonOptions);
         }
     }
 
@@ -164,7 +163,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         }
         else
         {
-            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonOptions);
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<MemberApi.Tests.Support.ProblemDetailsPayload>(JsonOptions);
         }
     }
 

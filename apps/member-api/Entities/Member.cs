@@ -12,5 +12,9 @@ public class Member
 
     public MemberStatus Status { get; set; }
 
+    public int FailedLoginAttempts { get; set; }
+
+    public DateTimeOffset? LockoutEndAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }

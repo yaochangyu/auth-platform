@@ -40,6 +40,14 @@ public class CommonSteps(PostgreSqlTestBase testBase)
         this.Then回應內容應為符合Rfc7807的驗證錯誤ProblemDetails();
     }
 
+    [Then("回應內容應為符合 RFC 7807 的 LockoutProblemDetails")]
+    public void Then回應內容應為符合Rfc7807的LockoutProblemDetails()
+    {
+        this.Then回應內容應為符合Rfc7807的驗證錯誤ProblemDetails();
+        Assert.NotNull(testBase.LastProblemDetails!.FailedLoginAttempts);
+        Assert.NotNull(testBase.LastProblemDetails.LockoutEndAt);
+    }
+
     [Then("錯誤類型應為 \"([^\"]*)\"")]
     public void Then錯誤類型應為(string expectedType)
     {
