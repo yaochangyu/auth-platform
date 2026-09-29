@@ -89,6 +89,10 @@ _避免使用_: RequestHash (請求雜湊), Checksum (校驗碼), SignToken (簽
 伺服器後端利用自身的 Client ID 與 Client Secret 直接向授權伺服器換發短效 Access Token 之無人介入身分憑據，用於機器間直接通訊。
 _避免使用_: ServiceAccount (服務帳號), AppCredentials (應用憑據)
 
+**Application (應用專案)**:
+開發者在開發者後台建立、代表其產品的管理單位，含名稱、簡介、聯絡窗口與 Logo，並對應一個唯一的 `ClientId`；OAuth Client 與 API Key 都掛在它底下。
+_避免使用_: Project (專案), Product (產品), Tenant (租戶)
+
 **Application Ownership (應用程式擁有權)**:
 在管理平台中將 OAuth Client 或 API Key 關聯至特定建立者會員（MemberId）的數據隔離機制，確保開發者僅能維護自身資產，唯管理員具全域審核與斷路權力。
 _避免使用_: TenantBinding (租戶綁定), AppUser (應用使用者)

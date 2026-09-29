@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: Developer API (開發者後台 API)
+  description: |
+    開發者後台 (Developer Console) 後端 API OpenAPI 3.0 規格文件，供 `apps/developer-web` 呼叫。
+    讓開發者管理「自己擁有 (Application Ownership)」的應用專案。
+
+    ### 規範遵守聲明
+    - **領域語言**：遵守 `CONTEXT.md` 統一領域語言（Application Ownership、OAuth Client、Scope）。
+    - **錯誤格式**：所有非 2xx 回應皆為 **RFC 7807 Problem Details**，Content-Type 為 `application/problem+json`。
+    - **鑑權 (Dogfooding)**：以 `auth-server` 簽發的 Access Token（RS256 JWT）作 Bearer 驗證。
+      Token 必須包含 `developer_api` 範疇（僅授權給 `developer-web`），會員身分取自 `sub` claim。
+    - **數據隔離**：所有查詢與異動皆以 Token 內的 `sub`（MemberId）為擁有者條件；
+      存取他人專案一律回 `404`（不洩漏專案是否存在）。
+  version: 1.0.0
+
+servers:
+  - url: https://developer.1111.com.tw
+    description: 正式營運環境 (Production)
+
+tags:
+  - name: Applications
+    description: 應用專案（Application）生命週期管理
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/applications:
+    get:
+      tags: [Applications]
+      summary: 取得我擁有的應用專案清單
+      operationId: listApplications
+      responses:
+        '200':
+          description: 僅包含呼叫者擁有的專案，依建立時間由新到舊排序
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Applications]
+      summary: 建立應用專案
+      description: 專案自動綁定呼叫者的 MemberId，並產生唯一的 `clientId`。
+      operationId: createApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationRequest'
+      responses:
+        '201':
+          description: 建立成功
+          headers:
+            Location:
+              description: 新專案的詳情網址
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/applications/{applicationId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Applications]
+      summary: 取得應用專案詳情
+      operationId: getApplication
+      responses:
+        '200':
+          description: 專案詳情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Applications]
+      summary: 更新應用專案
+      description: 以請求內容完整取代可編輯欄位（名稱、簡介、聯絡 Email、Logo、官網）。`clientId` 與狀態不可經此端點變更。
+      operationId: updateApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: auth-server 簽發的 Access Token，需含 `developer_api` 範疇。
+
+  schemas:
+    ApplicationRequest:
+      type: object
+      required: [name, description, contactEmail]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 應用程式名稱
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 應用程式簡介
+        contactEmail:
+          type: string
+          format: email
+          maxLength: 254
+          description: 聯絡窗口 Email
+        logoUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          nullable: true
+          description: Logo 網址（僅允許 http / https）
+        homepageUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          nullable: true
+          description: 官網首頁（僅允許 http / https）
+
+    ApplicationResponse:
+      type: object
+      required: [id, clientId, name, description, contactEmail, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+          description: 系統產生的唯一 OAuth Client 識別碼
+        name:
+          type: string
+        description:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        logoUrl:
+          type: string
+          nullable: true
+        homepageUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [Active, PendingReview, Suspended]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ApplicationListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationResponse'
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+  responses:
+    ValidationFailed:
+      description: 請求參數驗證失敗
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: 未提供、格式錯誤、偽造或已過期的 Access Token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: Access Token 有效但缺少 `developer_api` 範疇
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: 專案不存在，或不屬於呼叫者（不區分以免洩漏存在與否）
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'

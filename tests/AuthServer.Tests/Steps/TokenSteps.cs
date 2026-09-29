@@ -140,6 +140,13 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
     [Then("回應不應包含 Refresh Token")]
     public void Then無RefreshToken() => Assert.False(this._token.TryGetProperty("refresh_token", out _));
 
+    [Then("Access Token 的 scope 應包含 \"(.*)\"")]
+    public void ThenAccessToken範疇(string scope)
+    {
+        var token = new JsonWebToken(this._token.GetProperty("access_token").GetString());
+        Assert.Contains(scope, token.Claims.Where(claim => claim.Type == "scope").SelectMany(claim => claim.Value.Split(' ')));
+    }
+
     [Then("回應應包含 Refresh Token")]
     public void ThenRefreshToken() => Assert.False(string.IsNullOrEmpty(this._token.GetProperty("refresh_token").GetString()));
 

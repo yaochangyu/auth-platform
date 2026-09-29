@@ -51,3 +51,18 @@ Feature: OAuth 2.1 授權碼模式 (PKCE) 與主網域 Session Cookie SSO 橋接
     When 以 Client "member-web-spa" 發起授權請求且 redirect_uri 為未登記的網址
     Then 回應狀態碼應為 400
     And 回應不應包含 Location 標頭
+
+  Scenario: 一般 Client 不得要求開發者後台專用的 developer_api 範疇
+    Given 會員已登入且持有有效的主網域 Session Cookie
+    When 以 Client "member-web-spa" 及合法的 PKCE 參數並要求範疇 "openid、developer_api" 發起授權請求
+    Then 回應狀態碼應為 400
+    And 回應內容應包含錯誤碼 "invalid_request"
+    And 回應不應包含 Location 標頭
+
+  Scenario: 開發者後台 Client 可取得含 developer_api 範疇的授權碼
+    Given 會員已登入且持有有效的主網域 Session Cookie
+    When 以 Client "developer-web" 及合法的 PKCE 參數並要求範疇 "openid、profile、developer_api" 發起授權請求
+    Then 回應狀態碼應為 302
+    And 重定向目標應為該 Client 已登記的 redirect_uri
+    And 重定向網址應帶有 Authorization Code 與原始 state
+

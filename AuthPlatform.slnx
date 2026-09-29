@@ -3,11 +3,15 @@
   <Folder Name="/apps/auth-server/">
     <Project Path="apps/auth-server/AuthServer.csproj" />
   </Folder>
+  <Folder Name="/apps/developer-api/">
+    <Project Path="apps/developer-api/DeveloperApi.csproj" />
+  </Folder>
   <Folder Name="/apps/member-api/">
     <Project Path="apps/member-api/MemberApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AuthServer.Tests/AuthServer.Tests.csproj" />
+    <Project Path="tests/DeveloperApi.Tests/DeveloperApi.Tests.csproj" />
     <Project Path="tests/MemberApi.Tests/MemberApi.Tests.csproj" />
   </Folder>
 </Solution>

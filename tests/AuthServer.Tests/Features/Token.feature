@@ -107,3 +107,10 @@ Feature: Token 換發與 Refresh Token 輪替
     When 以 Refresh Token 續約
     Then 回應狀態碼應為 400
     And 回應的 error 欄位應為 "invalid_grant"
+
+  Scenario: 開發者後台 Client 換得的 Access Token 帶有 developer_api 範疇
+    Given 會員已登入且持有有效的主網域 Session Cookie
+    And 已以 Client "developer-web" 取得僅含範疇 "openid、profile、developer_api" 的 Access Token
+    Then Access Token 的 scope 應包含 "developer_api"
+    And 回應不應包含 Refresh Token
+

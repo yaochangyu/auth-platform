@@ -10,20 +10,29 @@ public static class ClientSeeder
     // 避免把固定密鑰寫進程式碼；正式環境不得設定。
     public static async Task SeedAsync(IOpenIddictApplicationManager applications, string? demoConfidentialSecret)
     {
-        await SeedClientAsync(applications, "member-web-spa", "會員中心", ConsentTypes.Implicit, clientSecret: null,
+        string[] standardScopes = [Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess];
+
+        await SeedClientAsync(applications, "member-web-spa", "會員中心", ConsentTypes.Implicit, clientSecret: null, standardScopes,
             "https://member.1111.com.tw/oauth/callback", "http://localhost:5173/oauth/callback");
-        await SeedClientAsync(applications, "demo-third-party-app", "示範第三方應用程式", ConsentTypes.Explicit, clientSecret: null,
+        await SeedClientAsync(applications, "demo-third-party-app", "示範第三方應用程式", ConsentTypes.Explicit, clientSecret: null, standardScopes,
             "https://demo.1111.com.tw/callback");
+
+        // 開發者後台為第一方 SPA（Dogfooding）：未授予 offline_access 範疇，因此不會核發 Refresh Token；
+        // Access Token 過期時以 SSO 無感重新授權。
+        await SeedClientAsync(applications, "developer-web", "開發者後台", ConsentTypes.Implicit, clientSecret: null,
+            [Scopes.OpenId, Scopes.Profile, Scopes.Email, AuthScopes.DeveloperApi],
+            "https://developer.1111.com.tw/oauth/callback", "http://localhost:5174/oauth/callback");
 
         if (!string.IsNullOrEmpty(demoConfidentialSecret))
         {
             await SeedClientAsync(applications, "demo-confidential-app", "示範後端應用程式", ConsentTypes.Implicit, clientSecret: demoConfidentialSecret,
-                "https://demo-backend.1111.com.tw/callback");
+                standardScopes, "https://demo-backend.1111.com.tw/callback");
         }
     }
 
     private static async Task SeedClientAsync(
-        IOpenIddictApplicationManager applications, string clientId, string displayName, string consentType, string? clientSecret, params string[] redirectUris)
+        IOpenIddictApplicationManager applications, string clientId, string displayName, string consentType, string? clientSecret,
+        string[] scopes, params string[] redirectUris)
     {
         var descriptor = new OpenIddictApplicationDescriptor
         {
@@ -39,13 +48,14 @@ public static class ClientSeeder
                 Permissions.GrantTypes.AuthorizationCode,
                 Permissions.GrantTypes.RefreshToken,
                 Permissions.ResponseTypes.Code,
-                Permissions.Scopes.Profile,
-                Permissions.Scopes.Email,
-                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-                Permissions.Prefixes.Scope + Scopes.OpenId,
             },
             Requirements = { Requirements.Features.ProofKeyForCodeExchange },
         };
+        foreach (var scope in scopes)
+        {
+            descriptor.Permissions.Add(Permissions.Prefixes.Scope + scope);
+        }
+
         foreach (var uri in redirectUris)
         {
             descriptor.RedirectUris.Add(new Uri(uri));

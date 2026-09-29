@@ -30,6 +30,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         ["member-web-spa"] = "https://member.1111.com.tw/oauth/callback",
         ["demo-third-party-app"] = "https://demo.1111.com.tw/callback",
         ["demo-confidential-app"] = "https://demo-backend.1111.com.tw/callback",
+        ["developer-web"] = "https://developer.1111.com.tw/oauth/callback",
     };
 
     private readonly Guid _memberId = Guid.NewGuid();
@@ -80,6 +81,10 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數並帶 prompt=none 發起授權請求")]
     public Task When帶PromptNone(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId], "none");
+
+    [When("以 Client \"(.*)\" 及合法的 PKCE 參數並要求範疇 \"(.*)\" 發起授權請求")]
+    public Task When要求指定範疇(string clientId, string scopes) =>
+        this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId], scope: scopes.Replace('、', ' '));
 
     [When("以 Client \"(.*)\" 發起授權請求且 未提供 code_challenge")]
     public Task When未提供Challenge(string clientId) => this.AuthorizeAsync(clientId, null, null, RedirectUris[clientId]);

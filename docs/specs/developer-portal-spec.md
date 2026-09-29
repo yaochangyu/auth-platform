@@ -2,7 +2,7 @@
 
 - **狀態 (Status)**: 已核准 (Approved)
 - **更新日期**: 2026-09-29
-- **對應模組**: `apps/auth-admin-api`（後端） / `apps/auth-admin-web`（前端）
+- **對應模組**: 開發者端為 `apps/developer-api`（後端）/ `apps/developer-web`（前端）；管理員端為 `apps/admin-api` / `apps/admin-web`（Issue #19）。ADR 0007 原稱 `auth-admin-*`，實際依 Issue #16、#19 命名
 
 ---
 
