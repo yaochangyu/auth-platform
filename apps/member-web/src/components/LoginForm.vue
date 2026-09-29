@@ -55,9 +55,10 @@ function onSubmit() {
       {{ isSubmitting ? '登入中...' : '登入' }}
     </Button>
 
-    <RouterLink to="/register" class="block text-center text-sm text-muted-foreground hover:underline">
-      還沒有帳號？前往註冊
-    </RouterLink>
+    <div class="flex justify-between text-sm text-muted-foreground">
+      <RouterLink to="/register" class="hover:underline">還沒有帳號？前往註冊</RouterLink>
+      <RouterLink to="/forgot-password" class="hover:underline">忘記密碼？</RouterLink>
+    </div>
   </form>
 </template>
 

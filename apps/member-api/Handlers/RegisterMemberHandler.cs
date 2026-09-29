@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using MemberApi.Contracts;
 using MemberApi.Entities;
 using MemberApi.Repositories;
@@ -29,6 +28,7 @@ public class RegisterMemberHandler(
                 DisplayName = request.DisplayName,
                 PasswordHash = string.Empty,
                 Status = MemberStatus.Pending,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
                 CreatedAt = now,
             };
             member.PasswordHash = passwordHasher.HashPassword(member, request.Password);
@@ -44,19 +44,20 @@ public class RegisterMemberHandler(
             member = existingMember;
 
             // 每個會員同時僅維持單一有效權杖，重新申請時作廢既有未使用權杖
-            var activeTokens = await memberRepository.FindActiveVerificationTokensAsync(member.Id, cancellationToken);
+            var activeTokens = await memberRepository.FindActiveVerificationTokensAsync(member.Id, VerificationTokenPurpose.EmailVerification, cancellationToken);
             foreach (var activeToken in activeTokens)
             {
                 activeToken.UsedAt = now;
             }
         }
 
-        var rawToken = GenerateToken();
+        var rawToken = VerificationTokenGenerator.Generate();
         memberRepository.AddVerificationToken(new VerificationToken
         {
             Id = Guid.NewGuid(),
             MemberId = member.Id,
             TokenHash = VerificationTokenHasher.Hash(rawToken),
+            Purpose = VerificationTokenPurpose.EmailVerification,
             ExpiresAt = now + TokenLifetime,
             CreatedAt = now,
         });
@@ -79,10 +80,5 @@ public class RegisterMemberHandler(
             "註冊成功，請前往信箱點擊驗證連結啟用會員身分。");
 
         return new RegisterResult(RegisterOutcome.Created, response);
-    }
-
-    private static string GenerateToken()
-    {
-        return Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     }
 }

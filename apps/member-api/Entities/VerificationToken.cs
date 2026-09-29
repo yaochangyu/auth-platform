@@ -10,6 +10,8 @@ public class VerificationToken
 
     public required string TokenHash { get; set; }
 
+    public VerificationTokenPurpose Purpose { get; set; }
+
     public DateTimeOffset ExpiresAt { get; set; }
 
     public DateTimeOffset? UsedAt { get; set; }

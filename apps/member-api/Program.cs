@@ -7,12 +7,15 @@ using MemberApi.Infrastructure.Persistence;
 using MemberApi.Repositories;
 using MemberApi.Validators;
 using MemberApi.Workers;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MemberApi.Email;
+using MemberApi.Security;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +26,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator>();
 builder.Services.AddScoped<IValidator<VerifyEmailRequest>, VerifyEmailRequestValidator>();
 builder.Services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+builder.Services.AddScoped<IValidator<ForgotPasswordRequest>, ForgotPasswordRequestValidator>();
+builder.Services.AddScoped<IValidator<ResetPasswordRequest>, ResetPasswordRequestValidator>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -62,6 +67,31 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 },
             });
         };
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            // ADR-0002：每次驗證請求時比對 Cookie 中攜帶的安全戳記與資料庫最新值，
+            // 密碼變更/重設後戳記已刷新，不一致即代表此 Session 已被使用者本人或系統主動註銷。
+            var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var stampInCookie = context.Principal?.FindFirstValue(SecurityStampClaimTypes.ClaimType);
+
+            if (memberIdText is null || !Guid.TryParse(memberIdText, out var memberId))
+            {
+                context.RejectPrincipal();
+                return;
+            }
+
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<MemberApiDbContext>();
+            var currentStamp = await dbContext.Members
+                .Where(member => member.Id == memberId)
+                .Select(member => member.SecurityStamp)
+                .SingleOrDefaultAsync();
+
+            if (currentStamp is null || currentStamp != stampInCookie)
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -76,6 +106,8 @@ builder.Services.AddScoped<IMemberRepository, MemberRepository>();
 builder.Services.AddScoped<IRegisterMemberHandler, RegisterMemberHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<ILoginHandler, LoginHandler>();
+builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
+builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
 builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
 builder.Services.AddHostedService<EmailDispatchWorker>();

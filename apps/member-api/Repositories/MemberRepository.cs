@@ -20,11 +20,19 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
             .SingleOrDefaultAsync(verificationToken => verificationToken.TokenHash == tokenHash, cancellationToken);
     }
 
-    public Task<List<VerificationToken>> FindActiveVerificationTokensAsync(Guid memberId, CancellationToken cancellationToken)
+    public Task<List<VerificationToken>> FindActiveVerificationTokensAsync(Guid memberId, VerificationTokenPurpose purpose, CancellationToken cancellationToken)
     {
         return dbContext.VerificationTokens
-            .Where(token => token.MemberId == memberId && token.UsedAt == null)
+            .Where(token => token.MemberId == memberId && token.Purpose == purpose && token.UsedAt == null)
             .ToListAsync(cancellationToken);
+    }
+
+    public Task<VerificationToken?> FindLatestVerificationTokenAsync(Guid memberId, VerificationTokenPurpose purpose, CancellationToken cancellationToken)
+    {
+        return dbContext.VerificationTokens
+            .Where(token => token.MemberId == memberId && token.Purpose == purpose)
+            .OrderByDescending(token => token.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public void AddMember(Member member)

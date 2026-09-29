@@ -38,6 +38,7 @@ public static class MemberSeeder
             DisplayName = "測試會員",
             PasswordHash = string.Empty,
             Status = status,
+            SecurityStamp = Guid.NewGuid().ToString("N"),
             CreatedAt = DateTimeOffset.UtcNow,
         };
         member.PasswordHash = hasher.HashPassword(member, password);

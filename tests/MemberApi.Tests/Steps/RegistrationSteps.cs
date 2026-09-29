@@ -16,7 +16,7 @@ namespace MemberApi.Tests.Steps;
 // ponytail: 整個 Test Run 共用同一個容器化資料庫、情境間不重置，
 // 因此各情境需使用不重複的 Email/Token 避免互相污染；資料量大時可改用 Respawn 做情境級重置。
 [Binding]
-public class RegistrationSteps(PostgreSqlTestBase testBase)
+public class RegistrationSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioContext)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -71,6 +71,7 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
     [When("使用者攜帶驗證權杖 \"([^\"]*)\" 呼叫 Email 驗證 API")]
     public async Task When使用者攜帶驗證權杖呼叫Email驗證Api(string token)
     {
+        scenarioContext.Set(token, "verificationToken");
         await this.PostVerifyEmailAsync(token);
     }
 
@@ -124,15 +125,6 @@ public class RegistrationSteps(PostgreSqlTestBase testBase)
         var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
         var member = await dbContext.Members.SingleAsync(m => m.Email == this._seededEmail);
         Assert.Equal(this._originalPasswordHash, member.PasswordHash);
-    }
-
-    [Then("該驗證權杖應被標記為已使用")]
-    public async Task Then該驗證權杖應被標記為已使用()
-    {
-        using var scope = testBase.Factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
-        var token = await dbContext.VerificationTokens.SingleAsync(t => t.MemberId == this._verifyEmailResponse!.MemberId);
-        Assert.NotNull(token.UsedAt);
     }
 
     private async Task PostRegisterAsync(string email, string password, string confirmPassword, string displayName)

@@ -3,6 +3,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using MemberApi.Contracts;
 using MemberApi.Handlers;
+using MemberApi.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -17,10 +18,15 @@ public class AuthController(
     IRegisterMemberHandler registerMemberHandler,
     IVerifyEmailHandler verifyEmailHandler,
     ILoginHandler loginHandler,
+    IForgotPasswordHandler forgotPasswordHandler,
+    IResetPasswordHandler resetPasswordHandler,
     IValidator<RegisterRequest> registerValidator,
     IValidator<VerifyEmailRequest> verifyEmailValidator,
-    IValidator<LoginRequest> loginValidator) : ControllerBase
+    IValidator<LoginRequest> loginValidator,
+    IValidator<ForgotPasswordRequest> forgotPasswordValidator,
+    IValidator<ResetPasswordRequest> resetPasswordValidator) : ControllerBase
 {
+    private const string ForgotPasswordAcceptedMessage = "若該信箱已在平台註冊，系統將寄出重設密碼說明信件，請於 15 分鐘內完成重設。";
     [HttpPost("register")]
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -137,6 +143,7 @@ public class AuthController(
             new(ClaimTypes.Email, member.Email),
             new(ClaimTypes.Name, member.DisplayName),
             new("status", member.Status.ToString()),
+            new(SecurityStampClaimTypes.ClaimType, member.SecurityStamp),
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await this.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
@@ -152,6 +159,59 @@ public class AuthController(
     {
         await this.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return this.Ok(new LogoutResponse("已成功登出並註銷會話。"));
+    }
+
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ForgotPasswordResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = await forgotPasswordValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
+        }
+
+        var outcome = await forgotPasswordHandler.HandleAsync(request, cancellationToken);
+        if (outcome == ForgotPasswordOutcome.RateLimited)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/too-many-requests",
+                title: "請求頻率過高，請稍候再試",
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
+        return this.Ok(new ForgotPasswordResponse(ForgotPasswordAcceptedMessage));
+    }
+
+    [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ResetPasswordResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = await resetPasswordValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
+        }
+
+        var outcome = await resetPasswordHandler.HandleAsync(request, cancellationToken);
+        return outcome switch
+        {
+            ResetPasswordOutcome.Success => this.Ok(new ResetPasswordResponse(
+                "密碼重設成功，所有歷史裝置之會話已立即失效，請使用新密碼重新登入。")),
+            ResetPasswordOutcome.TokenNotFound => this.Problem(
+                type: "https://auth.1111.com.tw/errors/verification-token-not-found",
+                title: "查無此驗證權杖",
+                statusCode: StatusCodes.Status404NotFound),
+            _ => this.Problem(
+                type: "https://auth.1111.com.tw/errors/verification-token-expired",
+                title: "驗證權杖已過期或已遭使用",
+                statusCode: StatusCodes.Status410Gone),
+        };
     }
 
     private ActionResult ToValidationProblem(ValidationResult result, string title)

@@ -39,6 +39,24 @@ export interface LogoutResponse {
   message: string
 }
 
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+export interface ForgotPasswordResponse {
+  message: string
+}
+
+export interface ResetPasswordRequest {
+  verificationToken: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface ResetPasswordResponse {
+  message: string
+}
+
 export interface ProblemDetails {
   type: string
   title: string

@@ -95,6 +95,9 @@ public class LoginSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioCon
         await MemberSeeder.SeedMemberAsync(testBase.Factory, email, MemberStatus.Active, password);
         await this.PostLoginAsync(email, password, null);
         this._sessionCookie = GetSetCookieHeader(this._response).Split(';')[0].Trim();
+
+        this.RememberCredentials(email, password);
+        scenarioContext.Set(this._sessionCookie, "sessionCookie");
     }
 
     [When("使用者攜帶該 Session Cookie 呼叫登出 API")]

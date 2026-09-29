@@ -1,10 +1,14 @@
+using MemberApi.Infrastructure.Persistence;
+using MemberApi.Security;
 using MemberApi.Tests.Support;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 
 namespace MemberApi.Tests.Steps;
 
 [Binding]
-public class CommonSteps(PostgreSqlTestBase testBase)
+public class CommonSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioContext)
 {
     [Given("初始化測試伺服器")]
     public Task Given初始化測試伺服器()
@@ -53,5 +57,18 @@ public class CommonSteps(PostgreSqlTestBase testBase)
     {
         Assert.NotNull(testBase.LastProblemDetails);
         Assert.Equal(expectedType, testBase.LastProblemDetails!.Type);
+    }
+
+    // 供 Registration/ResetPassword 等多個 Feature 共用：斷言「目前操作中的驗證權杖」已被標記為已使用。
+    // 呼叫端須在使用驗證權杖的 When/Given 步驟中，先以 scenarioContext.Set(token, "verificationToken") 記錄下來。
+    [Then("該驗證權杖應被標記為已使用")]
+    public async Task Then該驗證權杖應被標記為已使用()
+    {
+        var token = scenarioContext.Get<string>("verificationToken");
+        using var scope = testBase.Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
+        var tokenHash = VerificationTokenHasher.Hash(token);
+        var entity = await dbContext.VerificationTokens.SingleAsync(t => t.TokenHash == tokenHash);
+        Assert.NotNull(entity.UsedAt);
     }
 }
