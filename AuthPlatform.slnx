@@ -1,9 +1,13 @@
 <Solution>
   <Folder Name="/apps/" />
+  <Folder Name="/apps/auth-server/">
+    <Project Path="apps/auth-server/AuthServer.csproj" />
+  </Folder>
   <Folder Name="/apps/member-api/">
     <Project Path="apps/member-api/MemberApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AuthServer.Tests/AuthServer.Tests.csproj" />
     <Project Path="tests/MemberApi.Tests/MemberApi.Tests.csproj" />
   </Folder>
 </Solution>

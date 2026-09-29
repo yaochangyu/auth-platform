@@ -37,3 +37,7 @@ Thumbs.db
 .idea/
 *.swp
 *~
+
+# Auth Server 簽章/加密金鑰
+auth-signing-key.pem
+auth-encryption.key
