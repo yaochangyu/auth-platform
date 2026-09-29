@@ -22,6 +22,7 @@ public class ConsentController(
         [Scopes.OpenId] = "確認您的身分",
         [Scopes.Profile] = "讀取您的基本個人資料（暱稱）",
         [Scopes.Email] = "讀取您的電子郵件",
+        [Scopes.OfflineAccess] = "在您離線時持續存取（長期授權）",
     };
 
     public record ScopeItem(string Name, string Description);
@@ -79,16 +80,12 @@ public class ConsentController(
 
         var application = await applications.FindByClientIdAsync(ticket.ClientId)
                           ?? throw new InvalidOperationException("票證中的 Client 應存在。");
-        var descriptor = new OpenIddictAuthorizationDescriptor
-        {
-            ApplicationId = await applications.GetIdAsync(application),
-            Subject = ticket.MemberId.ToString(),
-            Type = AuthorizationTypes.Permanent,
-            Status = Statuses.Valid,
-            CreationDate = timeProvider.GetUtcNow(),
-        };
-        descriptor.Scopes.UnionWith(granted);
-        await authorizations.CreateAsync(descriptor);
+        await authorizations.CreateForMemberAsync(
+            (await applications.GetIdAsync(application))!,
+            ticket.MemberId.ToString(),
+            AuthorizationTypes.Permanent,
+            granted,
+            timeProvider.GetUtcNow());
 
         // 回到授權端點，由它找到剛建立的授權紀錄並核發 Authorization Code。
         var query = QueryHelpers.ParseQuery(ticket.AuthorizeQuery)

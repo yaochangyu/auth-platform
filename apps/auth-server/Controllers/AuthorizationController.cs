@@ -16,6 +16,7 @@ public class AuthorizationController(
     IOpenIddictApplicationManager applications,
     IOpenIddictAuthorizationManager authorizations,
     ConsentTicketService tickets,
+    TimeProvider timeProvider,
     IConfiguration configuration) : Controller
 {
     [HttpGet("~/connect/authorize")]
@@ -49,13 +50,21 @@ public class AuthorizationController(
                           ?? throw new InvalidOperationException("Client 應已由 OpenIddict 驗證存在。");
 
         var memberId = session.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        string? authorizationId = null;
+        var applicationId = (await applications.GetIdAsync(application))!;
+        string authorizationId;
 
-        if (await applications.GetConsentTypeAsync(application) != ConsentTypes.Implicit)
+        if (await applications.GetConsentTypeAsync(application) == ConsentTypes.Implicit)
+        {
+            // 第一方免同意也要建立授權紀錄，Refresh Token 才能掛在其下，重複使用時才撤銷得了整個授權。
+            // ponytail: Ad-hoc 授權紀錄不會自動清除，量大時加入 OpenIddict.Quartz 的 Prune 排程。
+            authorizationId = await authorizations.CreateForMemberAsync(
+                applicationId, memberId, AuthorizationTypes.AdHoc, request.GetScopes(), timeProvider.GetUtcNow());
+        }
+        else
         {
             // 第三方 Client：找得到會員先前同意過（涵蓋本次範疇）的授權紀錄才免詢問，否則進入 Consent 流程。
             var existing = await authorizations.FindAsync(
-                memberId, (await applications.GetIdAsync(application))!, Statuses.Valid, AuthorizationTypes.Permanent, [.. request.GetScopes()])
+                memberId, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, [.. request.GetScopes()])
                 .FirstOrDefaultAsync();
             if (existing is null)
             {
@@ -78,17 +87,21 @@ public class AuthorizationController(
                 return this.Redirect(QueryHelpers.AddQueryString(consentUrl, "consent_id", consentId));
             }
 
-            authorizationId = await authorizations.GetIdAsync(existing);
+            authorizationId = (await authorizations.GetIdAsync(existing))!;
         }
 
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
         identity.SetClaim(Claims.Subject, memberId);
+        identity.SetClaim(MemberStamp.ClaimType, session.Principal.FindFirstValue(MemberStamp.ClaimType));
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
         principal.SetAuthorizationId(authorizationId);
-        principal.SetDestinations(_ => [Destinations.AccessToken, Destinations.IdentityToken]);
+        // Security Stamp 不放任何 JWT，只留在 Authorization Code / Refresh Token 內，換票時用來比對會員密碼是否已變更。
+        principal.SetDestinations(claim => claim.Type == MemberStamp.ClaimType
+            ? []
+            : [Destinations.AccessToken, Destinations.IdentityToken]);
 
         return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }

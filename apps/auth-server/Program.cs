@@ -28,9 +28,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Events.OnValidatePrincipal = async context =>
         {
             // ADR-0002：Security Stamp 與資料庫不符（密碼已變更/重設）即視為未登入；缺少 claim 一律 fail-closed。
-            // ponytail: 與 member-api 共用資料庫，直接讀 members.security_stamp（耦合其 schema）；改為內部 API 時再抽換。
             var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var stamp = context.Principal?.FindFirstValue("security_stamp");
+            var stamp = context.Principal?.FindFirstValue(MemberStamp.ClaimType);
             if (!Guid.TryParse(memberIdText, out var memberId) || stamp is null)
             {
                 context.RejectPrincipal();
@@ -38,9 +37,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
             }
 
             var dbContext = context.HttpContext.RequestServices.GetRequiredService<AuthServerDbContext>();
-            var currentStamp = await dbContext.Database
-                .SqlQuery<string>($"select security_stamp as \"Value\" from members where id = {memberId}")
-                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+            var currentStamp = await MemberStamp.GetCurrentAsync(dbContext, memberId, context.HttpContext.RequestAborted);
             if (currentStamp != stamp)
             {
                 context.RejectPrincipal();
@@ -73,9 +70,14 @@ builder.Services.AddOpenIddict()
         }
 
         options.AllowAuthorizationCodeFlow()
+            .AllowRefreshTokenFlow()
             .RequireProofKeyForCodeExchange()
-            .RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email)
-            .SetAuthorizationCodeLifetime(TimeSpan.FromMinutes(1));
+            .RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess)
+            .SetAuthorizationCodeLifetime(TimeSpan.FromMinutes(1))
+            .SetAccessTokenLifetime(TimeSpan.FromMinutes(15))
+            .SetRefreshTokenLifetime(TimeSpan.FromDays(30))
+            // 預設有 30 秒寬限：舊 Refresh Token 仍可重複使用而不被視為外洩。ADR 0006 要求一律偵測，故歸零。
+            .SetRefreshTokenReuseLeeway(TimeSpan.Zero);
         options.Configure(server =>
         {
             server.CodeChallengeMethods.Clear();
@@ -85,7 +87,7 @@ builder.Services.AddOpenIddict()
             .AddEncryptionKey(KeyStore.LoadOrCreateEncryptionKey(keyDirectory))
             .DisableAccessTokenEncryption();
 
-        var aspNetCore = options.UseAspNetCore().EnableAuthorizationEndpointPassthrough();
+        var aspNetCore = options.UseAspNetCore().EnableAuthorizationEndpointPassthrough().EnableTokenEndpointPassthrough();
         if (!requireHttps)
         {
             aspNetCore.DisableTransportSecurityRequirement();
@@ -97,7 +99,8 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AuthServerDbContext>().Database.MigrateAsync();
-    await ClientSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>());
+    await ClientSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>(), builder.Configuration["Auth:DemoClientSecret"]);
 }
 
 if (string.IsNullOrEmpty(builder.Configuration["Auth:DataProtectionKeyDirectory"]))

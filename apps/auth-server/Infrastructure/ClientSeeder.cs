@@ -6,27 +6,31 @@ namespace AuthServer.Infrastructure;
 
 public static class ClientSeeder
 {
-    public static async Task SeedAsync(IOpenIddictApplicationManager applications)
+    // demoConfidentialSecret 只在設定時才建立示範用（第一方、免同意）Confidential Client，僅限開發/測試環境設定，
+    // 避免把固定密鑰寫進程式碼；正式環境不得設定。
+    public static async Task SeedAsync(IOpenIddictApplicationManager applications, string? demoConfidentialSecret)
     {
-        await SeedClientAsync(applications, "member-web-spa", "會員中心", ConsentTypes.Implicit,
+        await SeedClientAsync(applications, "member-web-spa", "會員中心", ConsentTypes.Implicit, clientSecret: null,
             "https://member.1111.com.tw/oauth/callback", "http://localhost:5173/oauth/callback");
-        await SeedClientAsync(applications, "demo-third-party-app", "示範第三方應用程式", ConsentTypes.Explicit,
+        await SeedClientAsync(applications, "demo-third-party-app", "示範第三方應用程式", ConsentTypes.Explicit, clientSecret: null,
             "https://demo.1111.com.tw/callback");
+
+        if (!string.IsNullOrEmpty(demoConfidentialSecret))
+        {
+            await SeedClientAsync(applications, "demo-confidential-app", "示範後端應用程式", ConsentTypes.Implicit, clientSecret: demoConfidentialSecret,
+                "https://demo-backend.1111.com.tw/callback");
+        }
     }
 
     private static async Task SeedClientAsync(
-        IOpenIddictApplicationManager applications, string clientId, string displayName, string consentType, params string[] redirectUris)
+        IOpenIddictApplicationManager applications, string clientId, string displayName, string consentType, string? clientSecret, params string[] redirectUris)
     {
-        if (await applications.FindByClientIdAsync(clientId) is not null)
-        {
-            return;
-        }
-
         var descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = clientId,
             DisplayName = displayName,
-            ClientType = ClientTypes.Public,
+            ClientType = clientSecret is null ? ClientTypes.Public : ClientTypes.Confidential,
+            ClientSecret = clientSecret,
             ConsentType = consentType,
             Permissions =
             {
@@ -37,6 +41,7 @@ public static class ClientSeeder
                 Permissions.ResponseTypes.Code,
                 Permissions.Scopes.Profile,
                 Permissions.Scopes.Email,
+                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
                 Permissions.Prefixes.Scope + Scopes.OpenId,
             },
             Requirements = { Requirements.Features.ProofKeyForCodeExchange },
@@ -48,11 +53,19 @@ public static class ClientSeeder
 
         try
         {
-            await applications.CreateAsync(descriptor);
+            // 種子 Client 以程式碼為準，每次啟動同步（例如新增的 Scope 權限）。
+            if (await applications.FindByClientIdAsync(clientId) is { } existing)
+            {
+                await applications.UpdateAsync(existing, descriptor);
+            }
+            else
+            {
+                await applications.CreateAsync(descriptor);
+            }
         }
-        catch (Exception ex) when (ex is DbUpdateException or OpenIddictExceptions.ValidationException)
+        catch (Exception ex) when (ex is DbUpdateException or OpenIddictExceptions.ValidationException or OpenIddictExceptions.ConcurrencyException)
         {
-            // 多個實例同時首次啟動時，另一個實例已寫入同一 Client，視為已種子完成。
+            // 多個實例同時啟動時，另一個實例已寫入或更新同一 Client，視為已種子完成。
         }
     }
 }

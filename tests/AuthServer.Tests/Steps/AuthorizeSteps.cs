@@ -15,11 +15,14 @@ namespace AuthServer.Tests.Steps;
 [Binding]
 public class AuthorizeSteps(AuthServerTestBase testBase)
 {
+    public const string Verifier = "test-code-verifier-with-enough-entropy-1234567890";
+
     private const string State = "state-12345";
     public static readonly Dictionary<string, string> RedirectUris = new()
     {
         ["member-web-spa"] = "https://member.1111.com.tw/oauth/callback",
         ["demo-third-party-app"] = "https://demo.1111.com.tw/callback",
+        ["demo-confidential-app"] = "https://demo-backend.1111.com.tw/callback",
     };
 
     private readonly Guid _memberId = Guid.NewGuid();
@@ -116,7 +119,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
     [Then("回應不應包含 Location 標頭")]
     public void Then無Location() => Assert.Null(testBase.LastResponse!.Headers.Location);
 
-    public async Task AuthorizeAsync(string clientId, string? challenge, string? method, string redirectUri, string? prompt = null)
+    public async Task AuthorizeAsync(string clientId, string? challenge, string? method, string redirectUri, string? prompt = null, string scope = "openid profile email")
     {
         this._redirectUri = redirectUri;
         var query = new Dictionary<string, string?>
@@ -124,7 +127,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
             ["client_id"] = clientId,
             ["response_type"] = "code",
             ["redirect_uri"] = redirectUri,
-            ["scope"] = "openid profile email",
+            ["scope"] = scope,
             ["state"] = State,
             ["code_challenge"] = challenge,
             ["code_challenge_method"] = method,
@@ -145,7 +148,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
     }
 
     public static string Challenge() =>
-        WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes("test-code-verifier-with-enough-entropy-1234567890")));
+        WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(Verifier)));
 
     private async Task SetSecurityStampAsync(Guid memberId, bool insert, string stamp)
     {
