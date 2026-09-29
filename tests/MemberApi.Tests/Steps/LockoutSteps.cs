@@ -85,6 +85,16 @@ public class LockoutSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioC
         await this.PostLoginAsync(email, password);
     }
 
+    [When("使用者並行送出 10 次錯誤密碼呼叫登入 API")]
+    public async Task When使用者並行送出10次錯誤密碼呼叫登入Api()
+    {
+        var email = scenarioContext.Get<string>("email");
+
+        // 併發呼叫僅需驗證最終落庫狀態，各請求各自送出、互不共用可變欄位，避免資料競爭。
+        var tasks = Enumerable.Range(0, 10).Select(_ => PostLoginConcurrentAsync(email, WrongPassword));
+        await Task.WhenAll(tasks);
+    }
+
     [Then("每次回應狀態碼皆為 (\\d+)")]
     public void Then每次回應狀態碼皆為(int expectedStatusCode)
     {
@@ -104,6 +114,15 @@ public class LockoutSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioC
     {
         var email = scenarioContext.Get<string>("email");
         Assert.Null(await this.GetLockoutEndAtAsync(email));
+    }
+
+    [Then("該會員應處於鎖定狀態")]
+    public async Task Then該會員應處於鎖定狀態()
+    {
+        var email = scenarioContext.Get<string>("email");
+        var lockoutEndAt = await this.GetLockoutEndAtAsync(email);
+        Assert.NotNull(lockoutEndAt);
+        Assert.True(lockoutEndAt > testBase.TimeProvider.GetUtcNow());
     }
 
     [Then("該會員的 lockoutEndAt 應為空")]
@@ -135,6 +154,12 @@ public class LockoutSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioC
         Assert.NotNull(testBase.LastProblemDetails);
         Assert.Null(testBase.LastProblemDetails!.FailedLoginAttempts);
         Assert.Null(testBase.LastProblemDetails.LockoutEndAt);
+    }
+
+    private async Task PostLoginConcurrentAsync(string email, string password)
+    {
+        var request = new LoginRequest(email, password, null);
+        using var response = await testBase.Client.PostAsJsonAsync("/api/v1/auth/login", request);
     }
 
     private async Task PostLoginAsync(string email, string password)

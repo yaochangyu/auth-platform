@@ -20,29 +20,37 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
 
         var now = timeProvider.GetUtcNow();
 
-        // 鎖定期間內一律直接拒絕，即使密碼正確也不進行雜湊比對
-        if (member.LockoutEndAt is not null && member.LockoutEndAt > now)
+        if (member.LockoutEndAt is not null)
         {
-            return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
+            // 鎖定期間內一律直接拒絕，即使密碼正確也不進行雜湊比對
+            if (member.LockoutEndAt > now)
+            {
+                return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
+            }
+
+            // 鎖定時效已過期：視為全新的計數起點，清空殘留的失敗次數與鎖定戳記
+            member.FailedLoginAttempts = 0;
+            member.LockoutEndAt = null;
+            await memberRepository.SaveChangesAsync(cancellationToken);
         }
 
         var passwordVerified = passwordHasher.VerifyHashedPassword(member, member.PasswordHash, request.Password) != PasswordVerificationResult.Failed;
         if (!passwordVerified)
         {
-            member.FailedLoginAttempts++;
+            // 原子 UPDATE ... RETURNING：避免多個並行請求各自讀取-遞增-寫回造成 Lost Update，
+            // 確保並行密碼錯誤時失敗計數精確累加、鎖定判斷不失準。
+            var (failedLoginAttempts, lockoutEndAt) =
+                (await memberRepository.RegisterFailedLoginAsync(member.Id, now, MaxFailedAttempts, LockoutDuration, cancellationToken))!.Value;
 
-            if (member.FailedLoginAttempts >= MaxFailedAttempts)
+            if (lockoutEndAt is not null && lockoutEndAt > now)
             {
-                member.LockoutEndAt = now + LockoutDuration;
-                await memberRepository.SaveChangesAsync(cancellationToken);
-                return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
+                return new LoginResult(LoginOutcome.AccountLocked, null, member, failedLoginAttempts, lockoutEndAt);
             }
 
-            await memberRepository.SaveChangesAsync(cancellationToken);
             return new LoginResult(LoginOutcome.InvalidCredentials, null, null);
         }
 
-        // 密碼正確：重設失敗計數與鎖定狀態（即使鎖定時效已過期，這裡也一併清空殘留欄位）
+        // 密碼正確：重設失敗計數與鎖定狀態
         member.FailedLoginAttempts = 0;
         member.LockoutEndAt = null;
 

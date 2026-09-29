@@ -59,3 +59,16 @@ Feature: 登入防爆破與帳號漸進式暫時鎖定
     And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
     And 回應內容不應包含 failedLoginAttempts 或 lockoutEndAt 欄位
     And 回應不應包含 Set-Cookie 標頭
+
+  Scenario: 並行送出 10 次錯誤密碼
+    Given 系統已存在一筆狀態為 Active 的會員，Email 為 "lockout-concurrent@1111.com.tw"，密碼為 "P@ssw0rd2026!"
+    When 使用者並行送出 10 次錯誤密碼呼叫登入 API
+    Then 該會員的 failedLoginAttempts 應為 10
+    And 該會員應處於鎖定狀態
+
+  Scenario: 鎖定時效過期後輸入錯誤密碼
+    Given 系統已存在一筆狀態為 Active 且鎖定時效已過期的會員，Email 為 "lockout-expired-wrongpassword@1111.com.tw"，密碼為 "P@ssw0rd2026!"
+    When 使用者以錯誤密碼呼叫登入 API
+    Then 回應狀態碼應為 401
+    And 該會員的 failedLoginAttempts 應為 1
+    And 該會員的 lockoutEndAt 應為空
