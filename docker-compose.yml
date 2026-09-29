@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: member_api
+      POSTGRES_PASSWORD: member_api
+      POSTGRES_DB: member_api
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U member_api -d member_api"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  member-api:
+    build:
+      context: apps/member-api
+    environment:
+      ConnectionStrings__MemberApiDb: "Host=postgres;Database=member_api;Username=member_api;Password=member_api"
+      Auth__CookieDomain: ".1111.com.tw"
+      Auth__RequireHttps: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  member-web:
+    build:
+      context: apps/member-web
+    depends_on:
+      member-api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres-data:

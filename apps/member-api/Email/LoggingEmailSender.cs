@@ -6,7 +6,7 @@ public class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSend
 {
     public Task SendAsync(string toEmail, string subject, string body, CancellationToken cancellationToken)
     {
-        logger.LogInformation("寄送信件至 {ToEmail}：{Subject}", toEmail, subject);
+        logger.LogInformation("寄送信件至 {ToEmail}：{Subject}\n{Body}", toEmail, subject, body);
         return Task.CompletedTask;
     }
 }

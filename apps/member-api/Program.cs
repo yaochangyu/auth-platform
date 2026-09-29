@@ -30,13 +30,18 @@ builder.Services.AddScoped<IValidator<ForgotPasswordRequest>, ForgotPasswordRequ
 builder.Services.AddScoped<IValidator<ResetPasswordRequest>, ResetPasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
 
+// ponytail: 容器化本機驗證環境沒有 TLS 終止，Secure Cookie 在純 HTTP 下無法寫入；
+// 以設定檔控制而非寫死，正式環境維持預設安全值，docker-compose 才需要放寬。
+var requireHttps = builder.Configuration.GetValue("Auth:RequireHttps", true);
+var cookieDomain = builder.Configuration["Auth:CookieDomain"] ?? ".1111.com.tw";
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.Cookie.Name = ".AspNetCore.Cookies";
-        options.Cookie.Domain = ".1111.com.tw";
+        options.Cookie.Domain = cookieDomain;
         options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SecurePolicy = requireHttps ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Events.OnRedirectToLogin = async context =>
         {
@@ -138,12 +143,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 
-app.UseHttpsRedirection();
+if (requireHttps)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider.GetRequiredService<MemberApiDbContext>().Database.MigrateAsync();
+}
 
 app.Run();
 
