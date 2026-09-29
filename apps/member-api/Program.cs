@@ -71,10 +71,20 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         {
             // ADR-0002：每次驗證請求時比對 Cookie 中攜帶的安全戳記與資料庫最新值，
             // 密碼變更/重設後戳記已刷新，不一致即代表此 Session 已被使用者本人或系統主動註銷。
+            //
+            // 刻意不加 Cache：ADR-0002 的決策是「立即失效」，任何 TTL 快取都會重新製造一段
+            // 「密碼已重設但舊 Cookie 仍可用」的視窗，直接違背這條 ADR 存在的目的。這裡查的是
+            // members 表以主鍵 Id 查詢的單欄位索引掃描，屬於次毫秒等級的開銷，且只在已通過
+            // Cookie 簽章驗證、確實帶有效身分的請求上執行，不是隨意可觸發的放大攻擊面；除非之後
+            // 有實測數據證明它是瓶頸，否則不值得用快取換取安全性下降。
+            //
+            // 缺少 claim（例如遠早於此機制上線、格式較舊的殘留 Cookie）一律視為失效並要求重新登入，
+            // 這是刻意的 fail-closed 設計，不是需要相容處理的缺陷：沒有戳記代表無法驗證這個 Session
+            // 是否仍然有效，放行反而等於製造一條繞過安全戳記檢查的後門。
             var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
             var stampInCookie = context.Principal?.FindFirstValue(SecurityStampClaimTypes.ClaimType);
 
-            if (memberIdText is null || !Guid.TryParse(memberIdText, out var memberId))
+            if (memberIdText is null || stampInCookie is null || !Guid.TryParse(memberIdText, out var memberId))
             {
                 context.RejectPrincipal();
                 return;
@@ -84,7 +94,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
             var currentStamp = await dbContext.Members
                 .Where(member => member.Id == memberId)
                 .Select(member => member.SecurityStamp)
-                .SingleOrDefaultAsync();
+                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
             if (currentStamp is null || currentStamp != stampInCookie)
             {
