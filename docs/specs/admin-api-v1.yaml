@@ -1,0 +1,381 @@
+openapi: 3.0.3
+info:
+  title: Admin API (管理後台 API)
+  description: |
+    平台管理員專用的後端 API OpenAPI 3.0 規格文件，供 `apps/admin-web` 呼叫：全平台應用專案審核、緊急斷路與稽核紀錄查詢。
+
+    ### 規範遵守聲明
+    - **領域語言**：遵守 `CONTEXT.md`（Administrator、Circuit Breaker、Audit Log、Application）。
+    - **錯誤格式**：所有非 2xx 回應皆為 **RFC 7807 Problem Details**，Content-Type 為 `application/problem+json`。
+    - **鑑權 (Dogfooding)**：以 `auth-server` 簽發的 Access Token（RS256 JWT）作 Bearer 驗證。Token 必須同時滿足：
+      1. 含 `admin_api` 範疇（僅授權給 `admin-web`）；
+      2. `role` claim 為 `admin`（auth-server 於換票當下讀取會員最新角色，降級的管理員換票後立即失去權限）；
+      3. `sub` 為有效的會員識別碼。
+
+      未帶或無效的 Token 回 `401`；Token 有效但不符合上述條件（例如一般會員）一律回 `403`。
+    - **稽核**：所有狀態變更寫入不可篡改的稽核紀錄（資料庫觸發器禁止更新、刪除與清空）；失敗的操作不寫入。
+  version: 1.0.0
+
+servers:
+  - url: https://admin.1111.com.tw
+    description: 正式營運環境 (Production)
+
+tags:
+  - name: Applications
+    description: 全平台應用專案檢視、審核與緊急斷路
+  - name: Audit Logs
+    description: 不可篡改的稽核紀錄查詢
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/admin/applications:
+    get:
+      tags: [Applications]
+      summary: 取得全平台應用專案清單
+      description: 不分擁有者，依建立時間由新到舊排序。
+      operationId: listAdminApplications
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ApplicationStatus'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 應用專案清單
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApplicationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/admin/applications/{applicationId}:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Applications]
+      summary: 取得應用專案詳情
+      operationId: getAdminApplication
+      responses:
+        '200':
+          description: 應用專案詳情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/applications/{applicationId}/status:
+    parameters:
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Applications]
+      summary: 切換應用專案狀態（審核與緊急斷路）
+      description: |
+        只能在 `Active` 與 `Suspended` 之間切換（`PendingReview` 是新專案的初始審核狀態，不能被設回去）。
+
+        **停用（`Suspended`）即緊急斷路器**，在同一個資料庫交易內：
+        1. 作廢該專案所有尚未撤銷的 API Key；
+        2. 作廢其 OAuth Client 的所有授權（Authorizations）與 Token；
+        3. 在 Client 上標記停用，auth-server 之後拒絕它的所有請求（授權、換票、續約、Client Credentials）；
+        4. 寫入稽核紀錄。任何一步失敗就全部回復。
+
+        **取消停用（`Active`）** 只解除 Client 的停用標記；已作廢的授權、Token 與 API Key 不會復原
+        （使用者需重新授權，開發者需重新發行 API Key）。
+
+        停用必須填寫 `reason`。狀態沒有改變回 `409`。
+      operationId: changeApplicationStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+      responses:
+        '200':
+          description: 變更成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Audit Logs]
+      summary: 查詢稽核紀錄
+      description: 只提供查詢，沒有任何修改或刪除端點。依時間由新到舊排序。
+      operationId: listAuditLogs
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+            example: application.suspend
+        - name: targetId
+          in: query
+          schema:
+            type: string
+        - name: actorMemberId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: 稽核紀錄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: auth-server 簽發的 Access Token，需含 `admin_api` 範疇且 `role` 為 `admin`。
+
+  schemas:
+    ApplicationStatus:
+      type: string
+      enum: [Active, PendingReview, Suspended]
+
+    AdminApplicationResponse:
+      type: object
+      required: [id, ownerMemberId, clientId, name, description, contactEmail, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerMemberId:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdminApplicationListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminApplicationResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    StatusChangeRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [Active, Suspended]
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: 停用時必填，寫入稽核紀錄
+
+    CircuitBreakerResult:
+      type: object
+      required: [revokedApiKeys, revokedAuthorizations, revokedTokens]
+      properties:
+        revokedApiKeys:
+          type: integer
+        revokedAuthorizations:
+          type: integer
+        revokedTokens:
+          type: integer
+
+    StatusChangeResponse:
+      type: object
+      required: [application]
+      properties:
+        application:
+          $ref: '#/components/schemas/AdminApplicationResponse'
+        circuitBreaker:
+          allOf:
+            - $ref: '#/components/schemas/CircuitBreakerResult'
+          nullable: true
+          description: 只有停用時才有
+
+    AuditLogResponse:
+      type: object
+      required: [id, occurredAt, actorMemberId, clientIp, action, targetType, targetId]
+      properties:
+        id:
+          type: integer
+          format: int64
+        occurredAt:
+          type: string
+          format: date-time
+        actorMemberId:
+          type: string
+          format: uuid
+        clientIp:
+          type: string
+        action:
+          type: string
+          example: application.suspend
+        targetType:
+          type: string
+          example: application
+        targetId:
+          type: string
+        before:
+          type: object
+          nullable: true
+          description: 變更前的內容
+        after:
+          type: object
+          nullable: true
+          description: 變更後的內容
+        details:
+          type: object
+          nullable: true
+          description: 補充資訊（原因、連帶作廢的數量等）
+
+    AuditLogListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+  responses:
+    ValidationFailed:
+      description: 請求參數驗證失敗
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: 未提供、格式錯誤、偽造或已過期的 Access Token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: Access Token 有效但不是管理員（缺少 `admin_api` 範疇、`role` 不是 `admin`，或 `sub` 不是有效的會員識別碼）
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: 應用專案不存在
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: 狀態沒有改變
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'

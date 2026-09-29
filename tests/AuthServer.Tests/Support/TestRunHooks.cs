@@ -39,7 +39,7 @@ public static class TestRunHooks
         // 測試只建立這些欄位，不引用 MemberApi 專案（兩者的 Program 類別會衝突）。
         await _container.ExecScriptAsync(
             "create table members (id uuid primary key, security_stamp text not null, email text not null, display_name text not null, "
-            + "email_verified_at timestamptz, created_at timestamptz not null);");
+            + "email_verified_at timestamptz, created_at timestamptz not null, role text not null default 'member');");
     }
 
     [AfterTestRun]

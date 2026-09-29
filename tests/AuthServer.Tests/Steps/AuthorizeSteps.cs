@@ -35,6 +35,7 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
         ["demo-third-party-app"] = "https://demo.1111.com.tw/callback",
         ["demo-confidential-app"] = "https://demo-backend.1111.com.tw/callback",
         ["developer-web"] = "https://developer.1111.com.tw/oauth/callback",
+        ["admin-web"] = "https://admin.1111.com.tw/oauth/callback",
     };
 
     private readonly Guid _memberId = Guid.NewGuid();
@@ -81,23 +82,23 @@ public class AuthorizeSteps(AuthServerTestBase testBase)
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數發起授權請求")]
     [When("再次以 Client \"(.*)\" 及合法的 PKCE 參數發起授權請求")]
-    public Task When合法Pkce(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId]);
+    public Task When合法Pkce(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUriOf(clientId));
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數並帶 prompt=none 發起授權請求")]
-    public Task When帶PromptNone(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId], "none");
+    public Task When帶PromptNone(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUriOf(clientId), "none");
 
     [When("以 Client \"(.*)\" 及合法的 PKCE 參數並要求範疇 \"(.*)\" 發起授權請求")]
     public Task When要求指定範疇(string clientId, string scopes) =>
-        this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUris[clientId], scope: scopes.Replace('、', ' '));
+        this.AuthorizeAsync(clientId, Challenge(), "S256", RedirectUriOf(clientId), scope: scopes.Replace('、', ' '));
 
     [When("以 Client \"(.*)\" 發起授權請求且 未提供 code_challenge")]
-    public Task When未提供Challenge(string clientId) => this.AuthorizeAsync(clientId, null, null, RedirectUris[clientId]);
+    public Task When未提供Challenge(string clientId) => this.AuthorizeAsync(clientId, null, null, RedirectUriOf(clientId));
 
     [When("以 Client \"(.*)\" 發起授權請求且 code_challenge_method 為 plain")]
-    public Task WhenPlain(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "plain", RedirectUris[clientId]);
+    public Task WhenPlain(string clientId) => this.AuthorizeAsync(clientId, Challenge(), "plain", RedirectUriOf(clientId));
 
     [When("以 Client \"(.*)\" 發起授權請求且 未提供 code_challenge_method")]
-    public Task When未提供Method(string clientId) => this.AuthorizeAsync(clientId, Challenge(), null, RedirectUris[clientId]);
+    public Task When未提供Method(string clientId) => this.AuthorizeAsync(clientId, Challenge(), null, RedirectUriOf(clientId));
 
     [When("以 Client \"(.*)\" 發起授權請求且 redirect_uri 為未登記的網址")]
     public Task When未登記RedirectUri(string clientId) =>

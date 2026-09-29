@@ -20,6 +20,7 @@ public class MemberApiDbContext(DbContextOptions<MemberApiDbContext> options) : 
         modelBuilder.Entity<Member>(builder =>
         {
             builder.HasIndex(member => member.Email).IsUnique();
+            builder.Property(member => member.Role).HasDefaultValue("member");
         });
 
         modelBuilder.Entity<VerificationToken>(builder =>

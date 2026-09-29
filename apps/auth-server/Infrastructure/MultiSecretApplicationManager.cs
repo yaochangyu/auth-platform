@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuthShared;
 using AuthShared.ClientSecrets;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -19,6 +20,19 @@ public class MultiSecretApplicationManager<TApplication>(
     TimeProvider timeProvider) : OpenIddictApplicationManager<TApplication>(cache, logger, options, store)
     where TApplication : class
 {
+    // 被管理員停用（斷路）的 Client：所有權限檢查（端點、授權方式、範疇）一律不通過，
+    // 授權、換票、續約與 Client Credentials 因此全部被拒；Client 設定原樣保留，取消停用即可還原。
+    public override async ValueTask<bool> HasPermissionAsync(TApplication application, string permission, CancellationToken cancellationToken = default)
+    {
+        var properties = await this.Store.GetPropertiesAsync(application, cancellationToken);
+        if (properties.TryGetValue(ClientProperties.Suspended, out var suspended) && suspended.ValueKind == JsonValueKind.True)
+        {
+            return false;
+        }
+
+        return await base.HasPermissionAsync(application, permission, cancellationToken);
+    }
+
     public override async ValueTask<bool> ValidateClientSecretAsync(
         TApplication application, string secret, CancellationToken cancellationToken = default)
     {

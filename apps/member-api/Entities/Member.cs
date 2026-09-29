@@ -19,6 +19,10 @@ public class Member
     // ADR-0002：密碼變更/重設時刷新，Cookie 驗證中介層比對此值以立即註銷舊裝置的歷史 Session
     public required string SecurityStamp { get; set; }
 
+    // 平台角色：一般會員為 member，平台管理員為 admin。沒有自助升級管道，由營運直接更新資料庫指定。
+    // auth-server 在授權範疇含 admin_api 時，於換票當下讀取並寫入 Access Token 的 role claim。
+    public string Role { get; set; } = "member";
+
     public DateTimeOffset? EmailVerifiedAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

@@ -1,3 +1,4 @@
+using AuthShared;
 namespace DeveloperApi.Entities;
 
 public class DeveloperApplication

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AuthShared.Hmac;
+using AuthShared.Web;
 using DeveloperApi.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ namespace DeveloperApi.Controllers;
 // Server-to-Server 連線檢查：以 API Key + HMAC 簽章驗證，讓後端服務在整合時確認自己的金鑰與簽章計算是否正確。
 [Route("api/v1/m2m")]
 [Authorize(AuthenticationSchemes = HmacAuthenticationDefaults.Scheme, Policy = AuthPolicies.M2mProfile)]
-public class M2mController : DeveloperApiControllerBase
+public class M2mController : ApiControllerBase
 {
     [HttpPost("echo")]
     [ProducesResponseType(typeof(M2mEchoResponse), StatusCodes.Status200OK)]

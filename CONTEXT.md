@@ -102,4 +102,12 @@ _避免使用_: TenantBinding (租戶綁定), AppUser (應用使用者)
 記錄管理人員與開發人員在管理平台中針對 Client 建立、Secret 輪替、Scope 異動、停用與 Token 撤銷等關鍵操作的不可變更軌跡記錄。
 _避免使用_: History (歷史), OperationTrace (操作追蹤), EventHistory (事件歷史)
 
+**Administrator (平台管理員)**:
+`members.role` 為 `admin` 的會員，可在管理後台審核所有應用專案並觸發斷路。角色沒有自助升級管道，由營運直接更新資料庫指定；auth-server 只在授權範疇含 `admin_api` 時，於換票當下讀取最新角色寫入 Access Token 的 `role` claim。
+_避免使用_: SuperUser (超級使用者), Root (根使用者), Operator (操作員)
+
+**Circuit Breaker (緊急斷路)**:
+管理員將應用專案停用（Suspended）時，即時作廢它所有的授權、Token 與 API Key，並讓它的 OAuth Client 拒絕一切新的請求。取消停用只解除 Client 的停用標記，已作廢的授權、Token 與 API Key 不會復原。
+_避免使用_: Kill Switch (終止開關), Ban (封鎖), Disable (停用開關)
+
 

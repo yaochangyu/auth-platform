@@ -15,6 +15,9 @@ public class ClientCredentialsSteps(AuthServerTestBase testBase, TokenSteps toke
     [Given("Confidential Client \"(.*)\" 已發行 Secret，允許 Client Credentials，範疇為 \"(.*)\"")]
     public Task Given允許(string clientId, string scopes) => this.SeedAsync(clientId, scopes, clientCredentials: true);
 
+    [Given("Confidential Client \"(.*)\" 已發行 Secret，允許 Client Credentials，範疇為 \"(.*)\"，且已被管理員停用")]
+    public Task Given已停用(string clientId, string scopes) => this.SeedAsync(clientId, scopes, clientCredentials: true, suspended: true);
+
     [Given("Confidential Client \"(.*)\" 已發行 Secret，不允許 Client Credentials，範疇為 \"(.*)\"")]
     public Task Given不允許(string clientId, string scopes) => this.SeedAsync(clientId, scopes, clientCredentials: false);
 
@@ -30,6 +33,12 @@ public class ClientCredentialsSteps(AuthServerTestBase testBase, TokenSteps toke
     [When("以 Public Client \"(.*)\" 使用 client_credentials 換票")]
     public Task WhenPublic(string clientId) => this.PostAsync(clientId, null, "profile");
 
+    [Given("Client \"(.*)\" 此後被管理員停用")]
+    public Task Given此後停用(string clientId) => TestClientSeeder.SuspendAsync(testBase.Factory.Services, clientId);
+
+    [When("以 Client \"(.*)\" 使用其 Secret 及正確的 code_verifier 兌換 Token")]
+    public Task When用Secret兌換(string clientId) => token.ExchangeWithSecretAsync(clientId, this._secret);
+
     [Then("Access Token 的 sub 應為 Client \"(.*)\"")]
     public void ThenSub(string clientId) => Assert.Equal(clientId, new JsonWebToken(token.AccessToken).Subject);
 
@@ -38,11 +47,11 @@ public class ClientCredentialsSteps(AuthServerTestBase testBase, TokenSteps toke
 
     private DateTimeOffset Now => testBase.Factory.TimeProvider.GetUtcNow();
 
-    private async Task SeedAsync(string clientId, string scopes, bool clientCredentials)
+    private async Task SeedAsync(string clientId, string scopes, bool clientCredentials, bool suspended = false)
     {
         var (set, plaintext, _) = ClientSecretSet.Empty.Issue(this.Now, GracePeriod);
         this._secret = plaintext;
-        await TestClientSeeder.SaveConfidentialAsync(testBase.Factory.Services, clientId, set, clientCredentials, scopes.Split('、'));
+        await TestClientSeeder.SaveConfidentialAsync(testBase.Factory.Services, clientId, set, clientCredentials, suspended, scopes.Split('、'));
     }
 
     private Task PostAsync(string clientId, string? secret, string scopes) =>

@@ -1,3 +1,4 @@
+using AuthShared;
 using System.Security.Cryptography;
 using System.Text;
 using DeveloperApi.Entities;

@@ -1,3 +1,4 @@
+using AuthShared.Web;
 using DeveloperApi.Contracts;
 using DeveloperApi.Entities;
 using DeveloperApi.Repositories;
@@ -14,7 +15,7 @@ public class OAuthClientController(
     ApplicationRepository applications,
     OAuthClientRepository oauthClients,
     IValidator<OAuthClientRequest> validator,
-    TimeProvider timeProvider) : DeveloperApiControllerBase
+    TimeProvider timeProvider) : ApiControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(OAuthClientResponse), StatusCodes.Status200OK)]

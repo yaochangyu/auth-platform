@@ -1,3 +1,5 @@
+using System.Text.Json;
+using AuthShared;
 using AuthShared.ClientSecrets;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
@@ -12,7 +14,7 @@ public static class TestClientSeeder
     public const string PlaceholderSecret = "placeholder-never-used-for-authentication";
 
     public static async Task SaveConfidentialAsync(
-        IServiceProvider services, string clientId, ClientSecretSet secrets, bool clientCredentials, params string[] scopes)
+        IServiceProvider services, string clientId, ClientSecretSet secrets, bool clientCredentials, bool suspended, params string[] scopes)
     {
         await using var scope = services.CreateAsyncScope();
         var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
@@ -46,6 +48,10 @@ public static class TestClientSeeder
         }
 
         descriptor.Properties[ClientSecretSet.PropertyName] = secrets.ToJson();
+        if (suspended)
+        {
+            descriptor.Properties[ClientProperties.Suspended] = JsonSerializer.SerializeToElement(true);
+        }
 
         if (await applications.FindByClientIdAsync(clientId) is { } existing)
         {
@@ -55,6 +61,18 @@ public static class TestClientSeeder
         {
             await applications.CreateAsync(descriptor);
         }
+    }
+
+    // 讓已存在的 Client 之後才被管理員停用（斷路），用於驗證停用前取得的授權碼也不能再換票。
+    public static async Task SuspendAsync(IServiceProvider services, string clientId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var client = (await applications.FindByClientIdAsync(clientId))!;
+        var descriptor = new OpenIddictApplicationDescriptor();
+        await applications.PopulateAsync(descriptor, client);
+        descriptor.Properties[ClientProperties.Suspended] = JsonSerializer.SerializeToElement(true);
+        await applications.UpdateAsync(client, descriptor);
     }
 
     public static async Task SavePublicAsync(IServiceProvider services, string clientId)

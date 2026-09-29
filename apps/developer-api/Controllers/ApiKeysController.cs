@@ -1,3 +1,4 @@
+using AuthShared.Web;
 using DeveloperApi.Contracts;
 using DeveloperApi.Repositories;
 using FluentValidation;
@@ -12,7 +13,7 @@ public class ApiKeysController(
     ApplicationRepository applications,
     ApiKeyRepository apiKeys,
     IValidator<ApiKeyRequest> validator,
-    TimeProvider timeProvider) : DeveloperApiControllerBase
+    TimeProvider timeProvider) : ApiControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApiKeyListResponse), StatusCodes.Status200OK)]

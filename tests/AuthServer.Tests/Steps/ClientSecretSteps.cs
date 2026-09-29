@@ -64,5 +64,5 @@ public class ClientSecretSteps(AuthServerTestBase testBase, TokenSteps token)
 
     private Task SaveClientAsync(string clientId) =>
         TestClientSeeder.SaveConfidentialAsync(
-            testBase.Factory.Services, clientId, this._set, clientCredentials: true, Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
+            testBase.Factory.Services, clientId, this._set, clientCredentials: true, suspended: false, Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
 }

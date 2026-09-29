@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/apps/" />
+  <Folder Name="/apps/admin-api/">
+    <Project Path="apps/admin-api/AdminApi.csproj" />
+  </Folder>
   <Folder Name="/apps/auth-shared/">
     <Project Path="apps/auth-shared/AuthShared.csproj" />
   </Folder>
@@ -13,6 +16,7 @@
     <Project Path="apps/member-api/MemberApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AdminApi.Tests/AdminApi.Tests.csproj" />
     <Project Path="tests/AuthServer.Tests/AuthServer.Tests.csproj" />
     <Project Path="tests/DeveloperApi.Tests/DeveloperApi.Tests.csproj" />
     <Project Path="tests/MemberApi.Tests/MemberApi.Tests.csproj" />

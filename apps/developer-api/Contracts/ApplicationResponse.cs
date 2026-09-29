@@ -1,3 +1,4 @@
+using AuthShared;
 using DeveloperApi.Entities;
 
 namespace DeveloperApi.Contracts;

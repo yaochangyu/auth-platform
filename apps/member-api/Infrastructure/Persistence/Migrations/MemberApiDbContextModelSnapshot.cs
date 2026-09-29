@@ -91,6 +91,13 @@ namespace MemberApi.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("member")
+                        .HasColumnName("role");
+
                     b.Property<string>("SecurityStamp")
                         .IsRequired()
                         .HasColumnType("text")

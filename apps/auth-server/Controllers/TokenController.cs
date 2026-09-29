@@ -47,6 +47,15 @@ public class TokenController(AuthServerDbContext dbContext) : Controller
                 OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
+        // 管理後台的 Token 附上會員「當下」的平台角色（不沿用授權當時的值，降級的管理員換票時立即失去 admin）。
+        // 未授予 admin_api 範疇的 Token 一律不帶角色，第三方看不到會員是否為管理員。
+        if (principal.HasScope(AuthScopes.AdminApi))
+        {
+            var role = await MemberRole.GetCurrentAsync(dbContext, memberId, this.HttpContext.RequestAborted) ?? "member";
+            principal.SetClaim(MemberRole.ClaimType, role);
+            principal.Claims.First(claim => claim.Type == MemberRole.ClaimType).SetDestinations(Destinations.AccessToken);
+        }
+
         return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 

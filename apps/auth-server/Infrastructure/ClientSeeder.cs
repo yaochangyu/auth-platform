@@ -23,6 +23,11 @@ public static class ClientSeeder
             [Scopes.OpenId, Scopes.Profile, Scopes.Email, AuthScopes.DeveloperApi],
             "https://developer.1111.com.tw/oauth/callback", "http://localhost:5174/oauth/callback");
 
+        // 管理後台同樣是第一方 SPA：授予 admin_api 範疇，角色由換票當下的會員資料決定，非管理員拿到的 Token 會被 admin-api 拒絕。
+        await SeedClientAsync(applications, "admin-web", "管理後台", ConsentTypes.Implicit, clientSecret: null,
+            [Scopes.OpenId, Scopes.Profile, AuthScopes.AdminApi],
+            "https://admin.1111.com.tw/oauth/callback", "http://localhost:5175/oauth/callback");
+
         if (!string.IsNullOrEmpty(demoConfidentialSecret))
         {
             await SeedClientAsync(applications, "demo-confidential-app", "示範後端應用程式", ConsentTypes.Implicit, clientSecret: demoConfidentialSecret,

@@ -42,6 +42,22 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
         Assert.Equal(200, (int)testBase.LastResponse!.StatusCode);
     }
 
+    [Given("已以 Client \"(.*)\" 取得僅含範疇 \"(.*)\" 的 Authorization Code")]
+    public async Task Given取得指定範疇的Code(string clientId, string scopes)
+    {
+        await authorize.AuthorizeAsync(
+            clientId, AuthorizeSteps.Challenge(), "S256", AuthorizeSteps.RedirectUriOf(clientId), scope: scopes.Replace('、', ' '));
+        this._code = QueryHelpers.ParseQuery(authorize.Location!.Query)["code"]!;
+    }
+
+    [Then("Access Token 的 claim \"(.*)\" 應為 \"(.*)\"")]
+    public void ThenAccessTokenClaim(string type, string expected) =>
+        Assert.Equal(expected, new JsonWebToken(this._token.GetProperty("access_token").GetString()).GetPayloadValue<string>(type));
+
+    [Then("Access Token 不應包含 claim \"(.*)\"")]
+    public void ThenAccessToken無Claim(string type) =>
+        Assert.False(new JsonWebToken(this._token.GetProperty("access_token").GetString()).TryGetPayloadValue<object>(type, out _));
+
     [Given("已以 Client \"(.*)\" 取得不含 offline_access 的 Authorization Code")]
     public async Task Given取得不含OfflineAccess的Code(string clientId)
     {
