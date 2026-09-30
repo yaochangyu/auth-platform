@@ -110,4 +110,25 @@ _避免使用_: SuperUser (超級使用者), Root (根使用者), Operator (操�
 管理員將應用專案停用（Suspended）時，即時作廢它所有的授權、Token 與 API Key，並讓它的 OAuth Client 拒絕一切新的請求。取消停用只解除 Client 的停用標記，已作廢的授權、Token 與 API Key 不會復原。
 _避免使用_: Kill Switch (終止開關), Ban (封鎖), Disable (停用開關)
 
+**Public Client (公用客戶端)**:
+運作於無法安全隱藏或存放 Client Secret 之終端環境（如 iOS/Android 原生 App 或瀏覽器純 SPA）的客戶端應用。在授權中心禁止核發 Secret，強制採用 PKCE (S256) 與 Universal Links 防護。
+_避免使用_: NativeAppClient (原生客戶端), UntrustedClient (非信任客戶端)
+
+**First-Party Client (第一方客戶端)**:
+由平台官方直接維運之高信任應用（如 `member-web`、官方 App、官方行銷活動平台），具備存取內部擴充屬性與執行特定資料增量補填之權限。
+_避免使用_: InternalClient (內部客戶端), SystemApp (系統應用)
+
+**Attribute Completion (屬性補填)**:
+針對未填寫之會員個人擴充欄位進行增量補充寫入的機制。依欄位屬性套用「欄位可變性策略（Field Mutability Policies）」：常態資料（如學歷、地址）允許隨時自由覆寫更新；防弊特徵資料（如生日）則採 Write-Once（填寫後即鎖定）原則，防止任意竄改以防範活動防弊漏洞。
+_避免使用_: ProfileOverride (覆蓋檔案), DataSync (資料同步), ForceUpdate (強制更新)
+
+**Dual-Scheme Authentication (雙軌鑑權)**:
+在同一 API 服務中並存兩種身分認證方案（Web 端走 Session Cookie，行動端與第三方走 Bearer JWT），依請求來源通道自動判定驗證機制。
+_避免使用_: MixedAuth (混合驗證), HybridLogin (混合登入)
+
+**Token Revocation (權杖撤銷)**:
+客戶端或授權中心依據 RFC 7009 主動向授權伺服器發出通知，立即使指定之 Refresh Token 失效並連帶終止其換票能力的安全生命週期動作。
+_避免使用_: TokenDelete (權杖刪除), ExpireToken (過期權杖)
+
+
 

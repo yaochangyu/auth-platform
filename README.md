@@ -97,6 +97,21 @@ dotnet test AuthPlatform.slnx
   - 開發者後台：[`docs/specs/developer-api-v1.yaml`](docs/specs/developer-api-v1.yaml)
   - 管理員後台：[`docs/specs/admin-api-v1.yaml`](docs/specs/admin-api-v1.yaml)
 - 🏛️ **架構決策記錄 (Architecture Decision Records, ADR)**：
-  - 位於 [`docs/adr/`](docs/adr/)，完整記錄 ADR 0001 至 ADR 0007 之技術選型與取捨權衡。
+  - 位於 [`docs/adr/`](docs/adr/)，完整記錄 ADR 0001 至 ADR 0008 之技術選型與取捨權衡。
 - 📚 **領域模型與統一語言**：
   - 詳見 [`CONTEXT.md`](CONTEXT.md)。
+
+---
+
+## 未來藍圖與待辦功能 (Roadmap / Backlog)
+
+以下功能已完成架構設計與決策（見 [ADR 0008](docs/adr/0008-member-api-protection-and-native-app-auth.md)），保留於 Backlog 待後續排程實作：
+
+- 📱 **手機號碼與簡訊 SMS OTP 驗證**（詳見 [`docs/specs/mobile-phone-sms-otp-spec.md`](docs/specs/mobile-phone-sms-otp-spec.md)）：
+  - 資料庫擴充手機欄位與唯一索引。
+  - SMS Transactional Outbox 派發機制與 OTP 驗證端點。
+  - 支援「Email 或 手機號碼」雙軌識別登入。
+- 🛡️ **Member API 雙軌鑑權（Dual-Scheme Authentication）**：
+  - 為 Native App 與第三方提供 Bearer JWT 離線驗證通道。
+  - 第一方客戶端資料增量補填（`PATCH /api/v1/user/profile`）與防弊欄位 Write-Once 保護。
+
