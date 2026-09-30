@@ -11,6 +11,8 @@
 - **實作代碼**：實作程式碼時**必須使用 `/ponytail` skill**（以最簡約、最短、最少依賴且真正可行的最優解實作，拒絕過度設計與非必要樣板）。
 - **審核代碼**：審核代碼時**必須使用 `/code-review` skill**（雙軸審查：規格 Spec 與代碼標準 Standards）。
 - **探索需求**：探索需求時**必須使用 `/grill-with-doc` skill**，透過嚴格盤問與多面向探討完善規格。
+- **規格生成 (`/to-spec`)**：產出 Spec 時，除了發布至 GitHub Issue Tracker（帶 `ready-for-agent` 標籤）外，**必須強制在本地端 `docs/specs/{spec-name}.md` 同步存檔一份**並納入 Git 版本控管。
+- **工單拆解 (`/to-tickets`)**：工單發布至 GitHub Issue Tracker（帶 `ready-for-agent` 標籤與 blocking edges），本地鏡像檔依需求記錄。
 
 ### 2. 測試開發規範
 - **API 測試範疇**：後端 API 的測試**只需要 BDD + WebApplicationFactory + Testcontainers**，以真實 PostgreSQL 容器進行情境整合測試，不撰寫非必要的孤立單元測試。
