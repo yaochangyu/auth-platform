@@ -111,7 +111,8 @@ dotnet test AuthPlatform.slnx
   - 資料庫擴充手機欄位與唯一索引。
   - SMS Transactional Outbox 派發機制與 OTP 驗證端點。
   - 支援「Email 或 手機號碼」雙軌識別登入。
-- 🛡️ **Member API 雙軌鑑權（Dual-Scheme Authentication）**：
+- 🛡️ **Member API 雙軌鑑權、Native App 授權與欄位增量補填**（詳見母規格 Issue [#22](https://github.com/yaochangyu/auth-platform/issues/22) 與 [`docs/specs/phase3-dual-scheme-and-native-app-spec.md`](docs/specs/phase3-dual-scheme-and-native-app-spec.md)）：
   - 為 Native App 與第三方提供 Bearer JWT 離線驗證通道。
   - 第一方客戶端資料增量補填（`PATCH /api/v1/user/profile`）與防弊欄位 Write-Once 保護。
+  - 全鏈路權杖撤銷與安全戳記連動。
 
