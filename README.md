@@ -107,7 +107,7 @@ dotnet test AuthPlatform.slnx
 
 以下功能已完成架構設計與決策（見 [ADR 0008](docs/adr/0008-member-api-protection-and-native-app-auth.md)），保留於 Backlog 待後續排程實作：
 
-- 📱 **手機號碼與簡訊 SMS OTP 驗證**（詳見 [`docs/specs/mobile-phone-sms-otp-spec.md`](docs/specs/mobile-phone-sms-otp-spec.md)）：
+- 📱 **手機號碼與簡訊 SMS OTP 驗證**（詳見 Issue [#21](https://github.com/yaochangyu/auth-platform/issues/21) 與 [`docs/specs/mobile-phone-sms-otp-spec.md`](docs/specs/mobile-phone-sms-otp-spec.md)）：
   - 資料庫擴充手機欄位與唯一索引。
   - SMS Transactional Outbox 派發機制與 OTP 驗證端點。
   - 支援「Email 或 手機號碼」雙軌識別登入。
