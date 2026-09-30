@@ -21,6 +21,7 @@ if (builder.Configuration["Auth:DataProtectionKeyDirectory"] is { Length: > 0 } 
 builder.Services.AddControllers();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ConsentTicketService>();
+builder.Services.AddScoped<IMemberDirectory, DatabaseMemberDirectory>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
