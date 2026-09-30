@@ -8,6 +8,7 @@ public record ProblemDetailsPayload(
     string? Type,
     string? Title,
     int? Status,
+    string? Detail,
     Dictionary<string, string[]>? Errors,
     int? FailedLoginAttempts,
     DateTimeOffset? LockoutEndAt);

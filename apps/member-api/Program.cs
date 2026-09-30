@@ -102,6 +102,8 @@ builder.Services.AddScoped<IValidator<ForgotPasswordRequest>, ForgotPasswordRequ
 builder.Services.AddScoped<IValidator<ResetPasswordRequest>, ResetPasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdateMemberProfileRequest>, UpdateMemberProfileRequestValidator>();
+builder.Services.AddScoped<IValidator<SendSmsOtpRequest>, SendSmsOtpRequestValidator>();
+builder.Services.AddScoped<IValidator<VerifyPhoneRequest>, VerifyPhoneRequestValidator>();
 
 // ponytail: 容器化本機驗證環境沒有 TLS 終止，Secure Cookie 在純 HTTP 下無法寫入；
 // 以設定檔控制而非寫死，正式環境維持預設安全值，docker-compose 才需要放寬。
@@ -311,6 +313,8 @@ builder.Services.AddScoped<IUpdateMemberProfileHandler, UpdateMemberProfileHandl
 builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IListConnectedAppsHandler, ListConnectedAppsHandler>();
 builder.Services.AddScoped<IRevokeConnectedAppHandler, RevokeConnectedAppHandler>();
+builder.Services.AddScoped<ISendSmsOtpHandler, SendSmsOtpHandler>();
+builder.Services.AddScoped<IVerifyPhoneHandler, VerifyPhoneHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<LoggingEmailSender>();

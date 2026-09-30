@@ -372,6 +372,87 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
 
+  /api/v1/auth/send-sms-otp:
+    post:
+      tags:
+        - Authentication
+      summary: 發送簡訊驗證碼 (Send SMS OTP)
+      description: |
+        發送 6 碼動態簡訊驗證碼至指定手機號碼。
+        - **冷卻時間 (Cooldown)**：同一手機號碼 60 秒內不得重複發送，超限回傳 429 與 Retry-After 標頭。
+        - **安全有效性**：驗證碼有效期限為 5 分鐘，重新發送將自動註銷先前的未消耗驗證碼。
+      operationId: sendSmsOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendSmsOtpRequest'
+      responses:
+        '200':
+          description: 簡訊驗證碼已成功發送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendSmsOtpResponse'
+        '400':
+          description: 手機號碼格式不符
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '429':
+          description: 發送頻率過高，尚未度過冷卻間隔時間
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                example: 60
+              description: 建議重試等待時間（秒）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /api/v1/auth/verify-phone:
+    post:
+      tags:
+        - Authentication
+      summary: 驗證手機號碼簡訊驗證碼 (Verify Phone SMS OTP)
+      description: |
+        校驗輸入的 6 碼數字簡訊驗證碼。
+        - 驗證成功後將標記該驗證碼已被消耗（防止重播）。
+        - 若當前為已登入之會員連線，將同步更新會員之手機號碼與已驗證時間。
+        - 連續 5 次錯誤將自動失效鎖定該驗證碼。
+      operationId: verifyPhone
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPhoneRequest'
+      responses:
+        '200':
+          description: 手機號碼驗證成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyPhoneResponse'
+        '400':
+          description: 驗證碼錯誤、已過期或已達嘗試上限
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: 此手機號碼已被其他會員帳號綁定
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
   /api/v1/member/profile:
     get:
       tags:
@@ -1115,3 +1196,71 @@ components:
           type: integer
           description: 已連結應用程式總數量
           example: 1
+
+    SendSmsOtpRequest:
+      type: object
+      required:
+        - phoneNumber
+      properties:
+        phoneNumber:
+          type: string
+          description: 目標接收簡訊驗證碼之手機號碼（支援台灣 09xx 手機格式）
+          example: "0912345678"
+        purpose:
+          type: string
+          enum: [PhoneVerification, Login, PasswordReset]
+          default: PhoneVerification
+          description: 驗證碼發送目的
+
+    SendSmsOtpResponse:
+      type: object
+      required:
+        - message
+        - retryAfterSeconds
+      properties:
+        message:
+          type: string
+          example: "驗證碼已發送至指定手機號碼，請於 5 分鐘內完成驗證。"
+        retryAfterSeconds:
+          type: integer
+          description: 建議下次可重新發送之冷卻秒數
+          example: 60
+
+    VerifyPhoneRequest:
+      type: object
+      required:
+        - phoneNumber
+        - code
+      properties:
+        phoneNumber:
+          type: string
+          description: 手機號碼
+          example: "0912345678"
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: 6 碼動態數字驗證碼
+          example: "123456"
+
+    VerifyPhoneResponse:
+      type: object
+      required:
+        - success
+        - message
+        - phoneNumber
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "手機號碼驗證成功。"
+        phoneNumber:
+          type: string
+          example: "0912345678"
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-09-30T14:30:00Z"
+

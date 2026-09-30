@@ -24,7 +24,11 @@ public class AuthController(
     IValidator<VerifyEmailRequest> verifyEmailValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<ForgotPasswordRequest> forgotPasswordValidator,
-    IValidator<ResetPasswordRequest> resetPasswordValidator) : MemberApiControllerBase
+    IValidator<ResetPasswordRequest> resetPasswordValidator,
+    ISendSmsOtpHandler sendSmsOtpHandler,
+    IVerifyPhoneHandler verifyPhoneHandler,
+    IValidator<SendSmsOtpRequest> sendSmsOtpValidator,
+    IValidator<VerifyPhoneRequest> verifyPhoneValidator) : MemberApiControllerBase
 {
     private const string ForgotPasswordAcceptedMessage = "若該信箱已在平台註冊，系統將寄出重設密碼說明信件，請於 15 分鐘內完成重設。";
 
@@ -216,4 +220,90 @@ public class AuthController(
         };
     }
 
+    [HttpPost("send-sms-otp")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
+    [ProducesResponseType(typeof(SendSmsOtpResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> SendSmsOtp(SendSmsOtpRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = await sendSmsOtpValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
+        }
+
+        var result = await sendSmsOtpHandler.HandleAsync(request, cancellationToken);
+        if (result.Outcome == SendSmsOtpOutcome.RateLimited)
+        {
+            this.Response.Headers.RetryAfter = result.RetryAfterSeconds.ToString();
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/too-many-requests",
+                title: "請求頻率過高，請稍候再試",
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
+        if (result.Outcome == SendSmsOtpOutcome.Failed)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/sms-send-failed",
+                title: result.Message ?? "簡訊發送失敗",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+
+        return this.Ok(new SendSmsOtpResponse(result.Message ?? "驗證碼已發送至指定手機號碼，請於 5 分鐘內完成驗證。", result.RetryAfterSeconds));
+    }
+
+    [HttpPost("verify-phone")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
+    [ProducesResponseType(typeof(VerifyPhoneResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> VerifyPhone(VerifyPhoneRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = await verifyPhoneValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            return this.ToValidationProblem(validationResult, "請求參數驗證失敗");
+        }
+
+        Guid? currentMemberId = null;
+        var memberIdClaim = this.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(memberIdClaim, out var parsedId))
+        {
+            currentMemberId = parsedId;
+        }
+
+        var result = await verifyPhoneHandler.HandleAsync(request, currentMemberId, cancellationToken);
+        return result.Outcome switch
+        {
+            VerifyPhoneOutcome.Success => this.Ok(new VerifyPhoneResponse(
+                true,
+                result.Message ?? "手機號碼驗證成功。",
+                request.PhoneNumber,
+                result.VerifiedAt)),
+            VerifyPhoneOutcome.PhoneAlreadyBound => this.Problem(
+                type: "https://auth.1111.com.tw/errors/phone-already-bound",
+                title: "此手機號碼已被其他會員帳號綁定",
+                detail: result.Message,
+                statusCode: StatusCodes.Status409Conflict),
+            VerifyPhoneOutcome.Expired => this.Problem(
+                type: "https://auth.1111.com.tw/errors/sms-otp-expired",
+                title: "驗證碼已過期",
+                detail: result.Message,
+                statusCode: StatusCodes.Status400BadRequest),
+            VerifyPhoneOutcome.MaxAttemptsReached => this.Problem(
+                type: "https://auth.1111.com.tw/errors/sms-otp-max-attempts",
+                title: "驗證碼嘗試次數已達上限，請重新發送",
+                detail: result.Message,
+                statusCode: StatusCodes.Status400BadRequest),
+            _ => this.Problem(
+                type: "https://auth.1111.com.tw/errors/invalid-sms-otp",
+                title: "驗證碼錯誤",
+                detail: result.Message,
+                statusCode: StatusCodes.Status400BadRequest),
+        };
+    }
 }
+
