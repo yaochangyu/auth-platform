@@ -87,3 +87,11 @@ Feature: 會員登入、登出與 SSO 會話管理
     When 使用者未攜帶 Session Cookie 呼叫登出 API
     Then 回應狀態碼應為 401
     And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
+
+  Scenario: 會員以已綁定的手機號碼與密碼成功登入並獲得 Session Cookie
+    Given 系統已存在一筆狀態為 Active 的會員，Email 為 "phone-login@1111.com.tw"，密碼為 "P@ssw0rd2026!"
+    And 該會員已綁定手機號碼 "0912349988"
+    When 使用者以手機號碼 "0912349988" 密碼 "P@ssw0rd2026!" 呼叫登入 API
+    Then 回應狀態碼應為 200
+    And 回應標頭 Set-Cookie 應包含 ".AspNetCore.Cookies"
+    And 回應內容的 email 應為 "phone-login@1111.com.tw"

@@ -36,6 +36,34 @@ public class RegistrationSteps(PostgreSqlTestBase testBase, ScenarioContext scen
         await this.PostRegisterAsync(row["email"], row["password"], row["confirmPassword"], row["displayName"]);
     }
 
+    [When("使用者填寫 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 確認密碼 \"([^\"]*)\" 暱稱 \"([^\"]*)\" 手機 \"([^\"]*)\" 呼叫註冊 API")]
+    public async Task When使用者填寫Email密碼確認密碼暱稱手機呼叫註冊Api(string email, string password, string confirmPassword, string displayName, string phoneNumber)
+    {
+        scenarioContext.Set(email, "email");
+        var request = new RegisterRequest(email, password, confirmPassword, displayName, phoneNumber);
+        this._response = await testBase.Client.PostAsJsonAsync("/api/v1/auth/register", request);
+        testBase.LastResponse = this._response;
+
+        if (this._response.StatusCode == HttpStatusCode.Created)
+        {
+            this._registerResponse = await this._response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions);
+        }
+        else
+        {
+            testBase.LastProblemDetails = await this._response.Content.ReadFromJsonAsync<ProblemDetailsPayload>(JsonOptions);
+        }
+    }
+
+    [Then("資料庫中該會員的手機號碼應為 \"([^\"]*)\"")]
+    public async Task Then資料庫中該會員的手機號碼應為(string phoneNumber)
+    {
+        var email = scenarioContext.Get<string>("email");
+        using var scope = testBase.Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
+        var member = await dbContext.Members.SingleAsync(m => m.Email == email);
+        Assert.Equal(phoneNumber, member.PhoneNumber);
+    }
+
     [Given("系統已存在一筆 Email 為 \"([^\"]*)\" 且狀態為 Pending 的會員")]
     public async Task Given系統已存在一筆EmailStatusPending的會員(string email)
     {

@@ -13,6 +13,11 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
         return dbContext.Members.SingleOrDefaultAsync(member => member.Email == email, cancellationToken);
     }
 
+    public Task<Member?> FindByPhoneAsync(string phoneNumber, CancellationToken cancellationToken)
+    {
+        return dbContext.Members.SingleOrDefaultAsync(member => member.PhoneNumber == phoneNumber, cancellationToken);
+    }
+
     public Task<Member?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         return dbContext.Members.SingleOrDefaultAsync(member => member.Id == id, cancellationToken);

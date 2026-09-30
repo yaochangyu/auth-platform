@@ -55,6 +55,14 @@ public class AuthController(
                 statusCode: StatusCodes.Status409Conflict);
         }
 
+        if (result.Outcome == RegisterOutcome.PhoneAlreadyBound)
+        {
+            return this.Problem(
+                type: "https://auth.1111.com.tw/errors/phone-already-bound",
+                title: "此手機號碼已被其他會員帳號綁定",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
         return this.StatusCode(StatusCodes.Status201Created, result.Response);
     }
 

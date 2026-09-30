@@ -65,3 +65,15 @@ Feature: 會員註冊與 Email 驗證啟用
     When 使用者攜帶驗證權杖 "active-member-token" 呼叫 Email 驗證 API
     Then 回應狀態碼應為 409
     And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤
+
+  Scenario: 註冊時同時填寫手機號碼成功建立待啟用會員
+    When 使用者填寫 Email "reg-phone@1111.com.tw" 密碼 "P@ssw0rd2026!" 確認密碼 "P@ssw0rd2026!" 暱稱 "手機會員" 手機 "0977889900" 呼叫註冊 API
+    Then 回應狀態碼應為 201
+    And 資料庫中該會員的手機號碼應為 "0977889900"
+
+  Scenario: 註冊時填寫已被佔用的手機號碼回傳 409
+    Given 系統已存在一筆狀態為 Active 的會員，Email 為 "existing-phone@1111.com.tw"，密碼為 "P@ssw0rd2026!"
+    And 該會員已綁定手機號碼 "0977889911"
+    When 使用者填寫 Email "conflict-phone@1111.com.tw" 密碼 "P@ssw0rd2026!" 確認密碼 "P@ssw0rd2026!" 暱稱 "衝突會員" 手機 "0977889911" 呼叫註冊 API
+    Then 回應狀態碼應為 409
+    And 回應內容應為符合 RFC 7807 的 Problem Details 錯誤

@@ -6,6 +6,8 @@ public interface IMemberRepository
 {
     Task<Member?> FindByEmailAsync(string email, CancellationToken cancellationToken);
 
+    Task<Member?> FindByPhoneAsync(string phoneNumber, CancellationToken cancellationToken);
+
     Task<Member?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task<VerificationToken?> FindVerificationTokenByHashAsync(string tokenHash, CancellationToken cancellationToken);

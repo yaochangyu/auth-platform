@@ -4,7 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MemberApi.Contracts;
 using MemberApi.Entities;
+using MemberApi.Infrastructure.Persistence;
 using MemberApi.Tests.Support;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 
 namespace MemberApi.Tests.Steps;
@@ -49,16 +52,41 @@ public class LoginSteps(PostgreSqlTestBase testBase, ScenarioContext scenarioCon
         scenarioContext.Set(password, "password");
     }
 
+    [Given("該會員已綁定手機號碼 \"([^\"]*)\"")]
+    public async Task Given該會員已綁定手機號碼(string phoneNumber)
+    {
+        var email = scenarioContext.Get<string>("email");
+        using var scope = testBase.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MemberApiDbContext>();
+        var member = await db.Members.FirstAsync(m => m.Email == email);
+        member.PhoneNumber = phoneNumber;
+        member.PhoneVerifiedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 呼叫登入 API")]
     public async Task When使用者以EmailPassword呼叫登入Api(string email, string password)
     {
         await this.PostLoginAsync(email, password, null);
     }
 
+    [When("使用者以手機號碼 \"([^\"]*)\" 密碼 \"([^\"]*)\" 呼叫登入 API")]
+    public async Task When使用者以手機號碼密碼呼叫登入Api(string phone, string password)
+    {
+        await this.PostLoginAsync(phone, password, null);
+    }
+
     [When("使用者以 Email \"([^\"]*)\" 密碼 \"([^\"]*)\" 並攜帶 returnUrl \"([^\"]*)\" 呼叫登入 API")]
     public async Task When使用者以EmailPasswordReturnUrl呼叫登入Api(string email, string password, string returnUrl)
     {
         await this.PostLoginAsync(email, password, returnUrl);
+    }
+
+    [Then("回應內容的 email 應為 \"([^\"]*)\"")]
+    public void Then回應內容的email應為(string expectedEmail)
+    {
+        Assert.NotNull(this._loginResponse);
+        Assert.Equal(expectedEmail, this._loginResponse.Email);
     }
 
     [Then("回應標頭 Set-Cookie 應包含 \"([^\"]*)\"")]

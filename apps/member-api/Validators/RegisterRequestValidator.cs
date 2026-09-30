@@ -21,5 +21,10 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
         this.RuleFor(request => request.DisplayName)
             .NotEmpty()
             .MaximumLength(50);
+
+        this.RuleFor(request => request.PhoneNumber)
+            .Matches(PhoneNumberValidatorRules.Pattern)
+            .WithMessage(PhoneNumberValidatorRules.ErrorMessage)
+            .When(request => !string.IsNullOrEmpty(request.PhoneNumber));
     }
 }

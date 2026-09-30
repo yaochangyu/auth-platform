@@ -12,7 +12,10 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
 
     public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
-        var member = await memberRepository.FindByEmailAsync(request.Email, cancellationToken);
+        var member = request.Email.Contains('@')
+            ? await memberRepository.FindByEmailAsync(request.Email, cancellationToken)
+            : await memberRepository.FindByPhoneAsync(request.Email, cancellationToken);
+
         if (member is null)
         {
             return new LoginResult(LoginOutcome.InvalidCredentials, null, null);

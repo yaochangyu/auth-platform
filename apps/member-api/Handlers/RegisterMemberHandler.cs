@@ -51,6 +51,17 @@ public class RegisterMemberHandler(
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+        {
+            var phoneConflict = await memberRepository.FindByPhoneAsync(request.PhoneNumber, cancellationToken);
+            if (phoneConflict is not null && phoneConflict.Id != member.Id)
+            {
+                return new RegisterResult(RegisterOutcome.PhoneAlreadyBound, null);
+            }
+
+            member.PhoneNumber = request.PhoneNumber;
+        }
+
         var rawToken = VerificationTokenGenerator.Generate();
         memberRepository.AddVerificationToken(new VerificationToken
         {

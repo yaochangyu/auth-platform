@@ -13,8 +13,9 @@ public class LoginRequestValidator : AbstractValidator<LoginRequest>
         this._allowHttp = !configuration.GetValue("Auth:RequireHttps", true);
 
         this.RuleFor(request => request.Email)
-            .NotEmpty()
-            .EmailAddress();
+            .NotEmpty().WithMessage("請輸入 Email 或手機號碼。")
+            .Must(BeValidEmailOrPhone)
+            .WithMessage("請輸入有效的 Email 或手機號碼（例如：0912345678）。");
 
         this.RuleFor(request => request.Password)
             .NotEmpty();
@@ -23,6 +24,23 @@ public class LoginRequestValidator : AbstractValidator<LoginRequest>
             .Must(this.BeAValidReturnUrl)
             .WithMessage("returnUrl 須為本地相對路徑或 .1111.com.tw 網域下的 https 網址（僅在 Auth:RequireHttps 為 false 的本機/容器環境才接受 http）。")
             .When(request => !string.IsNullOrEmpty(request.ReturnUrl));
+    }
+
+    private static readonly System.ComponentModel.DataAnnotations.EmailAddressAttribute EmailAttribute = new();
+
+    private static bool BeValidEmailOrPhone(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return false;
+        }
+
+        if (identifier.Contains('@'))
+        {
+            return EmailAttribute.IsValid(identifier);
+        }
+
+        return System.Text.RegularExpressions.Regex.IsMatch(identifier, PhoneNumberValidatorRules.Pattern);
     }
 
     private bool BeAValidReturnUrl(string? returnUrl)
