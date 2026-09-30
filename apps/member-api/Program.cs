@@ -310,7 +310,17 @@ builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IListConnectedAppsHandler, ListConnectedAppsHandler>();
 builder.Services.AddScoped<IRevokeConnectedAppHandler, RevokeConnectedAppHandler>();
 builder.Services.AddScoped<IPasswordHasher<Member>, PasswordHasher<Member>>();
-builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.AddSingleton<LoggingEmailSender>();
+builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddSingleton<IEmailSender>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var emailProvider = config["Email:Provider"] ?? "Smtp";
+    return string.Equals(emailProvider, "Logging", StringComparison.OrdinalIgnoreCase)
+        ? sp.GetRequiredService<LoggingEmailSender>()
+        : sp.GetRequiredService<SmtpEmailSender>();
+});
 builder.Services.AddHostedService<EmailDispatchWorker>();
 builder.Services.AddSingleton(TimeProvider.System);
 

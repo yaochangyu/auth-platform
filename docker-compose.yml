@@ -24,6 +24,12 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   member-api:
     build:
       context: apps/member-api
@@ -33,11 +39,16 @@ services:
       Auth__RequireHttps: "false"
       # 與 auth-server、developer-api 共用 Data Protection 金鑰環，auth-server 才解得開這裡簽發的 Session Cookie。
       Auth__DataProtectionKeyDirectory: /keys/dp
+      Email__Provider: "Smtp"
+      Smtp__Host: "mailpit"
+      Smtp__Port: "1025"
     volumes:
       - dp-keys:/keys/dp
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 5s

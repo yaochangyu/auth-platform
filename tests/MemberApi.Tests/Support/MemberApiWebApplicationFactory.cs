@@ -25,6 +25,7 @@ public class MemberApiWebApplicationFactory(string connectionString) : WebApplic
             configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:MemberApiDb"] = connectionString,
+                ["Email:Provider"] = "Logging",
             });
         });
 
