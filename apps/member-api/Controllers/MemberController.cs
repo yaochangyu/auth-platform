@@ -5,6 +5,7 @@ using MemberApi.Handlers;
 using MemberApi.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,12 +21,25 @@ public class MemberController(
     IValidator<ChangePasswordRequest> changePasswordValidator) : MemberApiControllerBase
 {
     [HttpGet("profile")]
+    [Authorize(Policy = "ProfileAccess")]
     [ProducesResponseType(typeof(MemberProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProfile(CancellationToken cancellationToken)
     {
         var memberId = this.CurrentMemberId();
+        if (memberId == Guid.Empty)
+        {
+            return this.MemberNotFoundProblem();
+        }
+
         var profile = await getMemberProfileHandler.HandleAsync(memberId, cancellationToken);
+        if (profile is null)
+        {
+            return this.MemberNotFoundProblem();
+        }
+
         return this.Ok(profile);
     }
 
@@ -90,7 +104,15 @@ public class MemberController(
 
     private Guid CurrentMemberId()
     {
-        var memberIdText = this.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.Parse(memberIdText!);
+        var memberIdText = this.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? this.User.FindFirstValue("sub");
+        return Guid.TryParse(memberIdText, out var id) ? id : Guid.Empty;
+    }
+
+    private ObjectResult MemberNotFoundProblem()
+    {
+        return this.Problem(
+            type: "https://auth.1111.com.tw/errors/member-not-found",
+            title: "查無此會員資料",
+            statusCode: StatusCodes.Status404NotFound);
     }
 }

@@ -323,10 +323,14 @@ paths:
       tags:
         - Member Profile
       summary: 取得會員個人檔案 (Get Member Profile)
-      description: 檢視目前已登入會員的基本資訊、狀態與信箱驗證時間。
+      description: |
+        檢視目前已登入會員的基本資訊、狀態與信箱驗證時間。
+        支援第一方瀏覽器會話 Cookie 或攜帶 profile scope 之 Bearer Token 雙軌鑑權調用。
       operationId: getMemberProfile
       security:
         - SessionCookieAuth: []
+        - OAuth2BearerAuth:
+            - profile
       responses:
         '200':
           description: 成功取得會員個人檔案資料
@@ -335,11 +339,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/MemberProfileResponse'
         '401':
-          description: 未登入或會話已因安全戳記更新而失效
+          description: 未提供憑據、憑據無效或會話已因安全戳記更新而失效
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: 權限不足，Bearer Token 缺少必要的 profile 存取範疇 (Scope)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: 查無該會員資料（例如 sub 無效或該帳號不存在）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
 
   /api/v1/member/password:
     put:
@@ -452,6 +469,13 @@ components:
       description: |
         作用域限定於 `.1111.com.tw` 之 HttpOnly 安全會話 Cookie。
         代表會員在瀏覽器中的有效登入會話，並包含 Security Stamp 驗證。
+    OAuth2BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        由授權伺服器簽發之 RS256 JWT Access Token，包含 `sub` 與受保護之 `scope`。
+
 
   schemas:
     MemberStatus:

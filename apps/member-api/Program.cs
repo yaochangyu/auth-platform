@@ -9,6 +9,7 @@ using MemberApi.Validators;
 using MemberApi.Workers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -43,16 +44,110 @@ if (builder.Configuration["Auth:DataProtectionKeyDirectory"] is { Length: > 0 } 
     dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyDirectory));
 }
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+const string DualScheme = "DualScheme";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = DualScheme;
+    options.DefaultAuthenticateScheme = DualScheme;
+    options.DefaultChallengeScheme = DualScheme;
+})
+.AddPolicyScheme(DualScheme, "Cookie or Bearer", options =>
+{
+    options.ForwardDefaultSelector = context =>
     {
-        options.Cookie.Name = ".AspNetCore.Cookies";
-        options.Cookie.Domain = cookieDomain;
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = requireHttps ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Events.OnRedirectToLogin = async context =>
+        var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+        if (authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
         {
+            return JwtBearerDefaults.AuthenticationScheme;
+        }
+        return CookieAuthenticationDefaults.AuthenticationScheme;
+    };
+})
+.AddCookie(options =>
+{
+    options.Cookie.Name = ".AspNetCore.Cookies";
+    options.Cookie.Domain = cookieDomain;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = requireHttps ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Events.OnRedirectToLogin = async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+        await problemDetailsService.WriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = context.HttpContext,
+            ProblemDetails = new ProblemDetails
+            {
+                Type = "https://auth.1111.com.tw/errors/unauthorized",
+                Title = "未提供有效 Session Cookie 或會話已逾期失效",
+                Status = StatusCodes.Status401Unauthorized,
+            },
+        });
+    };
+    options.Events.OnRedirectToAccessDenied = async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+        await problemDetailsService.WriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = context.HttpContext,
+            ProblemDetails = new ProblemDetails
+            {
+                Type = "https://auth.1111.com.tw/errors/forbidden",
+                Title = "目前身分不允許存取此資源",
+                Status = StatusCodes.Status403Forbidden,
+            },
+        });
+    };
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        // ADR-0002：每次驗證請求時比對 Cookie 中攜帶的安全戳記與資料庫最新值，
+        // 密碼變更/重設後戳記已刷新，不一致即代表此 Session 已被使用者本人或系統主動註銷。
+        //
+        // 刻意不加 Cache：ADR-0002 的決策是「立即失效」，任何 TTL 快取都會重新製造一段
+        // 「密碼已重設但舊 Cookie 仍可用」的視窗，直接違背這條 ADR 存在的目的。這裡查的是
+        // members 表以主鍵 Id 查詢的單欄位索引掃描，屬於次毫秒等級的開銷，且只在已通過
+        // Cookie 簽章驗證、確實帶有效身分的請求上執行，不是隨意可觸發的放大攻擊面；除非之後
+        // 有實測數據證明它是瓶頸，否則不值得用快取換取安全性下降。
+        //
+        // 缺少 claim（例如遠早於此機制上線、格式較舊的殘留 Cookie）一律視為失效並要求重新登入，
+        // 這是刻意的 fail-closed 設計，不是需要相容處理的缺陷：沒有戳記代表無法驗證這個 Session
+        // 是否仍然有效，放行反而等於製造一條繞過安全戳記檢查的後門。
+        var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var stampInCookie = context.Principal?.FindFirstValue(SecurityStampClaimTypes.ClaimType);
+
+        if (memberIdText is null || stampInCookie is null || !Guid.TryParse(memberIdText, out var memberId))
+        {
+            context.RejectPrincipal();
+            return;
+        }
+
+        var dbContext = context.HttpContext.RequestServices.GetRequiredService<MemberApiDbContext>();
+        var currentStamp = await dbContext.Members
+            .Where(member => member.Id == memberId)
+            .Select(member => member.SecurityStamp)
+            .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+
+        if (currentStamp is null || currentStamp != stampInCookie)
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+    };
+})
+.AddJwtBearer(options =>
+{
+    options.Authority = builder.Configuration["Auth:Authority"];
+    options.RequireHttpsMetadata = builder.Configuration.GetValue("Auth:RequireHttps", true);
+    options.MapInboundClaims = false;
+    options.TokenValidationParameters.ValidateAudience = false;
+    options.Events = new JwtBearerEvents
+    {
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
             await problemDetailsService.WriteAsync(new ProblemDetailsContext
@@ -61,12 +156,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 ProblemDetails = new ProblemDetails
                 {
                     Type = "https://auth.1111.com.tw/errors/unauthorized",
-                    Title = "未提供有效 Session Cookie 或會話已逾期失效",
+                    Title = "未授權：未提供有效 Bearer Token 或 Token 已過期失效",
                     Status = StatusCodes.Status401Unauthorized,
                 },
             });
-        };
-        options.Events.OnRedirectToAccessDenied = async context =>
+        },
+        OnForbidden = async context =>
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
@@ -76,48 +171,31 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 ProblemDetails = new ProblemDetails
                 {
                     Type = "https://auth.1111.com.tw/errors/forbidden",
-                    Title = "目前身分不允許存取此資源",
+                    Title = "權限不足：目前 Token 不允許存取此資源",
                     Status = StatusCodes.Status403Forbidden,
                 },
             });
-        };
-        options.Events.OnValidatePrincipal = async context =>
+        },
+    };
+});
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ProfileAccess", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
         {
-            // ADR-0002：每次驗證請求時比對 Cookie 中攜帶的安全戳記與資料庫最新值，
-            // 密碼變更/重設後戳記已刷新，不一致即代表此 Session 已被使用者本人或系統主動註銷。
-            //
-            // 刻意不加 Cache：ADR-0002 的決策是「立即失效」，任何 TTL 快取都會重新製造一段
-            // 「密碼已重設但舊 Cookie 仍可用」的視窗，直接違背這條 ADR 存在的目的。這裡查的是
-            // members 表以主鍵 Id 查詢的單欄位索引掃描，屬於次毫秒等級的開銷，且只在已通過
-            // Cookie 簽章驗證、確實帶有效身分的請求上執行，不是隨意可觸發的放大攻擊面；除非之後
-            // 有實測數據證明它是瓶頸，否則不值得用快取換取安全性下降。
-            //
-            // 缺少 claim（例如遠早於此機制上線、格式較舊的殘留 Cookie）一律視為失效並要求重新登入，
-            // 這是刻意的 fail-closed 設計，不是需要相容處理的缺陷：沒有戳記代表無法驗證這個 Session
-            // 是否仍然有效，放行反而等於製造一條繞過安全戳記檢查的後門。
-            var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var stampInCookie = context.Principal?.FindFirstValue(SecurityStampClaimTypes.ClaimType);
-
-            if (memberIdText is null || stampInCookie is null || !Guid.TryParse(memberIdText, out var memberId))
+            // Cookie 鑑權（第一方瀏覽器會話）：擁有完整個人檔案存取權限
+            if (context.User.Identity?.AuthenticationType == CookieAuthenticationDefaults.AuthenticationScheme)
             {
-                context.RejectPrincipal();
-                return;
+                return true;
             }
 
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<MemberApiDbContext>();
-            var currentStamp = await dbContext.Members
-                .Where(member => member.Id == memberId)
-                .Select(member => member.SecurityStamp)
-                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
-
-            if (currentStamp is null || currentStamp != stampInCookie)
-            {
-                context.RejectPrincipal();
-                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+            // Bearer Token 鑑權：必須具備 profile scope
+            var scopes = context.User.FindAll("scope")
+                .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            return scopes.Contains("profile");
+        }));
+});
 
 builder.Services.AddDbContext<MemberApiDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")
