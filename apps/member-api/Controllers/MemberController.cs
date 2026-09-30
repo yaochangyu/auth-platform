@@ -44,9 +44,11 @@ public class MemberController(
     }
 
     [HttpPut("password")]
+    [Authorize(Policy = "FirstPartyOnly")]
     [ProducesResponseType(typeof(ChangePasswordResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await changePasswordValidator.ValidateAsync(request, cancellationToken);
@@ -74,8 +76,10 @@ public class MemberController(
     }
 
     [HttpGet("connected-apps")]
+    [Authorize(Policy = "FirstPartyOnly")]
     [ProducesResponseType(typeof(ConnectedAppListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ListConnectedApps(CancellationToken cancellationToken)
     {
         var memberId = this.CurrentMemberId();
@@ -84,8 +88,10 @@ public class MemberController(
     }
 
     [HttpDelete("connected-apps/{appId:guid}")]
+    [Authorize(Policy = "FirstPartyOnly")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeConnectedApp(Guid appId, CancellationToken cancellationToken)
     {

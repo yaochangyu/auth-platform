@@ -30,6 +30,32 @@ public class PostgreSqlTestBase
         return Task.CompletedTask;
     }
 
+    public async Task<HttpResponseMessage> SendAndRecordAsync(HttpRequestMessage request)
+    {
+        var response = await this.Client.SendAsync(request);
+        this.LastResponse = response;
+
+        var raw = await response.Content.ReadAsStringAsync();
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            try
+            {
+                this.LastProblemDetails = System.Text.Json.JsonSerializer.Deserialize<ProblemDetailsPayload>(
+                    raw,
+                    new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+                    {
+                        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+                    });
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return response;
+    }
+
     public async Task StopAsync()
     {
         this.Client?.Dispose();

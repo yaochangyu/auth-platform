@@ -195,6 +195,14 @@ builder.Services.AddAuthorization(options =>
                 .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
             return scopes.Contains("profile");
         }));
+
+    options.AddPolicy("FirstPartyOnly", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+        {
+            // 高敏感帳號治理操作（修改密碼、已連結應用程式管理）：僅限第一方瀏覽器會話 (Cookie) 存取
+            return context.User.Identity?.AuthenticationType == CookieAuthenticationDefaults.AuthenticationScheme;
+        }));
 });
 
 builder.Services.AddDbContext<MemberApiDbContext>(options =>
