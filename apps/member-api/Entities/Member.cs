@@ -37,4 +37,9 @@ public class Member
     public string? Address { get; set; }
 
     public string? JobTitle { get; set; }
+
+    // Issue #21 / #35: 手機號碼與簡訊驗證狀態
+    public string? PhoneNumber { get; set; }
+
+    public DateTimeOffset? PhoneVerifiedAt { get; set; }
 }

@@ -15,12 +15,20 @@ public class MemberApiDbContext(DbContextOptions<MemberApiDbContext> options) : 
 
     public DbSet<MemberGrant> MemberGrants => this.Set<MemberGrant>();
 
+    public DbSet<SmsOtp> SmsOtps => this.Set<SmsOtp>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Member>(builder =>
         {
             builder.HasIndex(member => member.Email).IsUnique();
+            builder.HasIndex(member => member.PhoneNumber).IsUnique();
             builder.Property(member => member.Role).HasDefaultValue("member");
+        });
+
+        modelBuilder.Entity<SmsOtp>(builder =>
+        {
+            builder.HasIndex(otp => new { otp.PhoneNumber, otp.Purpose });
         });
 
         modelBuilder.Entity<VerificationToken>(builder =>

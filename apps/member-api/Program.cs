@@ -343,6 +343,7 @@ builder.Services.AddTransient<ISmsSender>(sp =>
         : sp.GetRequiredService<MitakeSmsSender>();
 });
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ISmsOtpService, SmsOtpService>();
 
 var app = builder.Build();
 
