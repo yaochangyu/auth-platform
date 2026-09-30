@@ -26,6 +26,7 @@ public class MemberApiWebApplicationFactory(string connectionString) : WebApplic
             {
                 ["ConnectionStrings:MemberApiDb"] = connectionString,
                 ["Email:Provider"] = "Logging",
+                ["Sms:Provider"] = "Logging",
             });
         });
 

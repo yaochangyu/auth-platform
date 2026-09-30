@@ -30,6 +30,12 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  smspit:
+    build:
+      context: tools/smspit
+    ports:
+      - "8026:8026"
+
   member-api:
     build:
       context: apps/member-api
@@ -43,12 +49,16 @@ services:
       Email__Provider: "Smtp"
       Smtp__Host: "mailpit"
       Smtp__Port: "1025"
+      Sms__Provider: "Mitake"
+      MitakeSms__EndpointUrl: "http://smspit:8026/api/mtk/SmSend"
     volumes:
       - dp-keys:/keys/dp
     depends_on:
       postgres:
         condition: service_healthy
       mailpit:
+        condition: service_started
+      smspit:
         condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

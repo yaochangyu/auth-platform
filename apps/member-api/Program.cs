@@ -16,6 +16,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MemberApi.Email;
+using MemberApi.Sms;
+using Microsoft.Extensions.Options;
 using MemberApi.Security;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
@@ -322,6 +324,24 @@ builder.Services.AddSingleton<IEmailSender>(sp =>
         : sp.GetRequiredService<SmtpEmailSender>();
 });
 builder.Services.AddHostedService<EmailDispatchWorker>();
+builder.Services.Configure<MitakeSmsOptions>(builder.Configuration.GetSection(MitakeSmsOptions.SectionName));
+builder.Services.AddHttpClient<MitakeSmsSender>((sp, client) =>
+{
+    var options = sp.GetRequiredService<IOptions<MitakeSmsOptions>>().Value;
+    if (options.TimeoutSeconds > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    }
+});
+builder.Services.AddSingleton<LoggingSmsSender>();
+builder.Services.AddTransient<ISmsSender>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var smsProvider = config["Sms:Provider"] ?? "Mitake";
+    return string.Equals(smsProvider, "Logging", StringComparison.OrdinalIgnoreCase)
+        ? sp.GetRequiredService<LoggingSmsSender>()
+        : sp.GetRequiredService<MitakeSmsSender>();
+});
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
