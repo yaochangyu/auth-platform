@@ -1,6 +1,10 @@
 # 授權伺服器會員目錄深度模組架構重構 (IMemberDirectory Deep Module Refactoring) 規格
 
 - **GitHub Issue**: [#38](https://github.com/yaochangyu/auth-platform/issues/38)
+- **子工單 (Sub-issues)**:
+  - [#39 建立 IMemberDirectory 深度模組介面與單一 SQL 資料庫適配器](https://github.com/yaochangyu/auth-platform/issues/39)
+  - [#40 重構 TokenController 與 UserInfoController 採用 IMemberDirectory](https://github.com/yaochangyu/auth-platform/issues/40)
+  - [#41 廢棄移除冗餘靜態讀取類別並通過全套整合與煙霧測試](https://github.com/yaochangyu/auth-platform/issues/41)
 - **狀態**: `ready-for-agent`
 
 ## Problem Statement
