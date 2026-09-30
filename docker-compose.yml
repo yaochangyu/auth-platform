@@ -35,6 +35,7 @@ services:
       context: apps/member-api
     environment:
       ConnectionStrings__MemberApiDb: *shared-db
+      Auth__Authority: http://auth.1111.com.tw:8091
       Auth__CookieDomain: ".1111.com.tw"
       Auth__RequireHttps: "false"
       # 與 auth-server、developer-api 共用 Data Protection 金鑰環，auth-server 才解得開這裡簽發的 Session Cookie。

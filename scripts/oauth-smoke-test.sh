@@ -53,16 +53,8 @@ query_param() { printf '%s' "$1" | sed -n "s/.*[?&]$2=\([^&]*\).*/\1/p"; }
 new_verifier() { openssl rand -base64 48 | tr '+/' '-_' | tr -d '=\n'; }
 challenge_of() { printf %s "$1" | openssl dgst -sha256 -binary | b64url; }
 
-# 從 member-api 容器日誌取出寄給指定 Email 的連結 token（LoggingEmailSender，開發用途）。
-mail_token() {
-  local needle="寄送信件至 $1：$2" found
-  for _ in $(seq 1 40); do
-    found=$(docker compose logs member-api --no-log-prefix 2>/dev/null | grep -A1 -F "$needle" | grep -oP 'token=\K[^&\s]+' | tail -1 || true)
-    [ -n "$found" ] && { echo "$found"; return 0; }
-    sleep 0.5
-  done
-  return 1
-}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR/lib-mail.sh"
 
 register_and_login() { # email displayName jar
   c -f -o /dev/null -X POST "$MEMBER/api/v1/auth/register" -H 'Content-Type: application/json' \
