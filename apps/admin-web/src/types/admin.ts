@@ -1,4 +1,5 @@
 export type ApplicationStatus = 'Active' | 'PendingReview' | 'Suspended'
+export type OAuthClientType = 'Public' | 'Confidential'
 
 export interface AdminApplication {
   id: string
@@ -7,6 +8,7 @@ export interface AdminApplication {
   name: string
   description: string
   contactEmail: string
+  clientType: OAuthClientType | null
   status: ApplicationStatus
   createdAt: string
   updatedAt: string

@@ -219,6 +219,11 @@ components:
         contactEmail:
           type: string
           format: email
+        clientType:
+          type: string
+          enum: [Public, Confidential]
+          nullable: true
+          description: OAuth 客戶端類型；尚未建立 OAuth Client 時為 null
         status:
           $ref: '#/components/schemas/ApplicationStatus'
         createdAt:

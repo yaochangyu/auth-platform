@@ -143,6 +143,32 @@ public class AdminSteps(AdminApiTestBase testBase)
         this._oauthSeeds[project] = (authorizationCount, tokenCount);
     }
 
+    [Given("專案 \"([^\"]*)\" 已建立 OAuth Client，且類型為 \"([^\"]*)\"")]
+    public async Task Given已建立OAuthClient且類型為(string project, string clientType)
+    {
+        await using var scope = testBase.Factory.Services.CreateAsyncScope();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var clientId = testBase.Applications[project].ClientId;
+        var existing = await applications.FindByClientIdAsync(clientId);
+        var type = clientType == "Public" ? ClientTypes.Public : ClientTypes.Confidential;
+        if (existing is not null)
+        {
+            var descriptor = new OpenIddictApplicationDescriptor();
+            await applications.PopulateAsync(descriptor, existing);
+            descriptor.ClientType = type;
+            await applications.UpdateAsync(existing, descriptor);
+        }
+        else
+        {
+            await applications.CreateAsync(new OpenIddictApplicationDescriptor
+            {
+                ClientId = clientId,
+                DisplayName = project,
+                ClientType = type,
+            });
+        }
+    }
+
     // ---- 操作 ----
 
     [When("管理員 \"([^\"]*)\" 查詢全平台應用程式，狀態篩選 \"([^\"]*)\"")]
@@ -240,6 +266,10 @@ public class AdminSteps(AdminApiTestBase testBase)
 
     [Then("詳情的擁有者應為 \"([^\"]*)\"")]
     public void Then擁有者(string owner) => Assert.Equal(testBase.MemberId(owner), testBase.LastBody.GetProperty("ownerMemberId").GetGuid());
+
+    [Then("詳情的客戶端類型應為 \"([^\"]*)\"")]
+    public void Then客戶端類型(string expectedType) =>
+        Assert.Equal(expectedType, testBase.LastBody.GetProperty("clientType").GetString());
 
     [Then("回應的專案狀態應為 \"([^\"]*)\"")]
     public void Then專案狀態(string status) =>

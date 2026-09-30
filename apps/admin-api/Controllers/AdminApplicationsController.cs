@@ -7,6 +7,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.EntityFrameworkCore.Models;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AdminApi.Controllers;
 
@@ -32,7 +34,17 @@ public class AdminApplicationsController(
         var items = await query.OrderByDescending(application => application.CreatedAt).ThenBy(application => application.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
 
-        return this.Ok(new AdminApplicationListResponse([.. items.Select(AdminApplicationResponse.From)], total, page, pageSize));
+        var clientIds = items.Select(item => item.ClientId).ToList();
+        var clientTypeMap = await dbContext.Set<OpenIddictEntityFrameworkCoreApplication>()
+            .AsNoTracking()
+            .Where(app => app.ClientId != null && clientIds.Contains(app.ClientId))
+            .ToDictionaryAsync(app => app.ClientId!, app => app.ClientType, cancellationToken);
+
+        return this.Ok(new AdminApplicationListResponse(
+            [.. items.Select(item => AdminApplicationResponse.From(item, ToClientType(clientTypeMap.GetValueOrDefault(item.ClientId))))],
+            total,
+            page,
+            pageSize));
     }
 
     [HttpGet("{applicationId:guid}")]
@@ -41,8 +53,26 @@ public class AdminApplicationsController(
     public async Task<IActionResult> Get(Guid applicationId, CancellationToken cancellationToken)
     {
         var application = await dbContext.Applications.AsNoTracking().SingleOrDefaultAsync(item => item.Id == applicationId, cancellationToken);
-        return application is null ? this.NotFoundProblem() : this.Ok(AdminApplicationResponse.From(application));
+        if (application is null)
+        {
+            return this.NotFoundProblem();
+        }
+
+        var clientTypeStr = await dbContext.Set<OpenIddictEntityFrameworkCoreApplication>()
+            .AsNoTracking()
+            .Where(app => app.ClientId == application.ClientId)
+            .Select(app => app.ClientType)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return this.Ok(AdminApplicationResponse.From(application, ToClientType(clientTypeStr)));
     }
+
+    private static OAuthClientType? ToClientType(string? type) => type switch
+    {
+        ClientTypes.Public => OAuthClientType.Public,
+        ClientTypes.Confidential => OAuthClientType.Confidential,
+        _ => null,
+    };
 
     [HttpPut("{applicationId:guid}/status")]
     [ProducesResponseType(typeof(StatusChangeResponse), StatusCodes.Status200OK)]

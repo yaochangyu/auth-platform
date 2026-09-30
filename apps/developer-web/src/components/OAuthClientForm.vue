@@ -57,6 +57,9 @@ function onSubmit() {
 
     <div class="space-y-2">
       <Label for="redirectUris">Redirect URIs（每行一個，嚴格比對）</Label>
+      <p v-if="form.clientType === 'Public'" class="text-xs text-muted-foreground">
+        原生行動 App（Public Client）強制要求使用 HTTPS 官方網域深層連結（iOS Universal Links / Android App Links），杜絕惡意 URL Scheme 劫持。
+      </p>
       <Textarea id="redirectUris" v-model="form.redirectUris" placeholder="https://app.example.com/callback" />
       <p v-for="message in fieldErrors('redirectUris')" :key="message" class="text-sm text-destructive">{{ message }}</p>
     </div>

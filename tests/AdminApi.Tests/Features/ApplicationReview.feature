@@ -21,6 +21,13 @@ Feature: 全平台應用程式審核與緊急斷路器
     Then 回應狀態碼應為 200
     And 詳情的擁有者應為 "Alice"
 
+  Scenario: 管理員檢視單一應用程式詳情包含 OAuth 客戶端類型
+    Given 平台上有應用專案 "A1"，擁有者 "Alice"，狀態 "Active"
+    And 專案 "A1" 已建立 OAuth Client，且類型為 "Public"
+    When 管理員 "Root" 查看專案 "A1" 的詳情
+    Then 回應狀態碼應為 200
+    And 詳情的客戶端類型應為 "Public"
+
   Scenario: 查看不存在的應用程式回傳 404
     When 管理員 "Root" 查看不存在的應用程式
     Then 回應狀態碼應為 404

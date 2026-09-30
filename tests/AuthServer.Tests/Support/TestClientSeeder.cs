@@ -98,4 +98,42 @@ public static class TestClientSeeder
             await applications.CreateAsync(descriptor);
         }
     }
+
+    public static async Task SavePublicAppAsync(
+        IServiceProvider services, string clientId, string redirectUri = "https://app.1111.com.tw/oauth/callback", params string[] scopes)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var applications = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+
+        var descriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = clientId,
+            DisplayName = "原生 App 公用客戶端",
+            ClientType = ClientTypes.Public,
+            ConsentType = ConsentTypes.Implicit,
+            Permissions =
+            {
+                Permissions.Endpoints.Authorization,
+                Permissions.Endpoints.Token,
+                Permissions.GrantTypes.AuthorizationCode,
+                Permissions.GrantTypes.RefreshToken,
+                Permissions.ResponseTypes.Code,
+            },
+            Requirements = { Requirements.Features.ProofKeyForCodeExchange },
+            RedirectUris = { new Uri(redirectUri) },
+        };
+        foreach (var name in scopes)
+        {
+            descriptor.Permissions.Add(Permissions.Prefixes.Scope + name);
+        }
+
+        if (await applications.FindByClientIdAsync(clientId) is { } existing)
+        {
+            await applications.UpdateAsync(existing, descriptor);
+        }
+        else
+        {
+            await applications.CreateAsync(descriptor);
+        }
+    }
 }

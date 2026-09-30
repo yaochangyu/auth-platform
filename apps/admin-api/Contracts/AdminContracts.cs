@@ -4,6 +4,12 @@ using AuthShared;
 
 namespace AdminApi.Contracts;
 
+public enum OAuthClientType
+{
+    Public,
+    Confidential,
+}
+
 public record AdminApplicationResponse(
     Guid Id,
     Guid OwnerMemberId,
@@ -11,17 +17,19 @@ public record AdminApplicationResponse(
     string Name,
     string Description,
     string ContactEmail,
+    OAuthClientType? ClientType,
     ApplicationStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
-    public static AdminApplicationResponse From(ManagedApplication application) => new(
+    public static AdminApplicationResponse From(ManagedApplication application, OAuthClientType? clientType = null) => new(
         application.Id,
         application.OwnerMemberId,
         application.ClientId,
         application.Name,
         application.Description,
         application.ContactEmail,
+        clientType,
         application.Status,
         application.CreatedAt,
         application.UpdatedAt);

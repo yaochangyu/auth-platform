@@ -48,7 +48,12 @@ function go(target: number) {
       <li v-for="app in list.items" :key="app.id">
         <RouterLink :to="`/applications/${app.id}`" class="flex items-center justify-between rounded-lg border bg-card p-4 shadow-sm hover:bg-accent">
           <div class="min-w-0">
-            <p class="truncate font-medium text-card-foreground">{{ app.name }}</p>
+            <div class="flex items-center gap-2">
+              <p class="truncate font-medium text-card-foreground">{{ app.name }}</p>
+              <span v-if="app.clientType" class="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                {{ app.clientType }}
+              </span>
+            </div>
             <p class="truncate text-xs text-muted-foreground">擁有者：{{ app.ownerMemberId }}・{{ app.contactEmail }}</p>
           </div>
           <StatusBadge :status="app.status" />

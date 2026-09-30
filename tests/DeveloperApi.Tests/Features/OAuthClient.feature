@@ -15,13 +15,18 @@ Feature: OAuth Client 設定與 Client Secret 雙金鑰平滑輪替
     And 回應的 Secret 清單應有 0 組
 
   Scenario: 設定 Public Client 的網址白名單與範疇並同步到 Auth Server
-    When 開發者 "Alice" 設定專案 "Alice-1" 的 OAuth Client：類型 "Public"、Redirect URIs "https://app.example.com/callback、http://localhost:3000/callback"、Post Logout URIs "https://app.example.com/signed-out"、範疇 "openid、profile"
+    When 開發者 "Alice" 設定專案 "Alice-1" 的 OAuth Client：類型 "Public"、Redirect URIs "https://app.example.com/callback、https://app.1111.com.tw/oauth/callback"、Post Logout URIs "https://app.example.com/signed-out"、範疇 "openid、profile"
     Then 回應狀態碼應為 200
-    And 回應的 Redirect URIs 應為 "https://app.example.com/callback、http://localhost:3000/callback"
+    And 回應的 Redirect URIs 應為 "https://app.example.com/callback、https://app.1111.com.tw/oauth/callback"
     And 回應的 Post Logout URIs 應為 "https://app.example.com/signed-out"
     And 回應的範疇應為 "openid、profile"
     And Auth Server 中專案 "Alice-1" 的 Client 應為 Public、需要會員同意、強制 PKCE，範疇為 "openid、profile"
     And Auth Server 中專案 "Alice-1" 的 Client 顯示名稱應為 "Alice-1"
+
+  Scenario: Confidential Client 允許設定本機 localhost 回呼網址
+    When 開發者 "Alice" 設定專案 "Alice-1" 的 OAuth Client：類型 "Confidential"、Redirect URIs "https://app.example.com/callback、http://localhost:3000/callback"、Post Logout URIs "https://app.example.com/signed-out"、範疇 "openid、profile"
+    Then 回應狀態碼應為 200
+    And 回應的 Redirect URIs 應為 "https://app.example.com/callback、http://localhost:3000/callback"
 
   Scenario Outline: 網址或範疇不合法時拒絕設定
     When 開發者 "Alice" 設定專案 "Alice-1" 的 OAuth Client：類型 "Public"、Redirect URIs "<Redirect URIs>"、Post Logout URIs ""、範疇 "<範疇>"
@@ -30,6 +35,8 @@ Feature: OAuth Client 設定與 Client Secret 雙金鑰平滑輪替
 
     Examples:
       | Redirect URIs                                       | 範疇          | 欄位         |
+      | http://localhost:3000/callback                      | openid        | redirectUris |
+      | myapp://callback                                    | openid        | redirectUris |
       | http://evil.example.com/callback                    | openid        | redirectUris |
       | https://app.example.com/callback#fragment           | openid        | redirectUris |
       | https://app.example.com/callback#                   | openid        | redirectUris |

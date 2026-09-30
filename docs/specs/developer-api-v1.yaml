@@ -486,13 +486,14 @@ components:
         redirectUris:
           type: array
           maxItems: 10
-          description: 嚴格比對；須為 https（本機開發可用 http://localhost），不可含 `#`、帳號密碼或萬用字元
+          description: 嚴格比對；Public Client 強制要求 https 官方 App 網域深層連結（iOS Universal Links / Android App Links，禁止 http 與自訂 scheme）；Confidential Client 須為 https（本機開發可用 http://localhost），不可含 `#`、帳號密碼或萬用字元
           items:
             type: string
             format: uri
         postLogoutRedirectUris:
           type: array
           maxItems: 10
+          description: 嚴格比對；Public Client 須為 https 官方網址；Confidential Client 可用 http://localhost
           items:
             type: string
             format: uri

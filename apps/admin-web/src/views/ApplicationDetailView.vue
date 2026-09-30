@@ -55,6 +55,8 @@ async function activate() {
         <dl class="grid grid-cols-[8rem_1fr] gap-y-1 text-sm">
           <dt class="text-muted-foreground">Client ID</dt>
           <dd><code>{{ application.clientId }}</code></dd>
+          <dt class="text-muted-foreground">客戶端類型</dt>
+          <dd>{{ application.clientType ? (application.clientType === 'Public' ? '公用客戶端 (Public - 原生 App / SPA)' : '機密客戶端 (Confidential - 後端服務)') : '尚未設定' }}</dd>
           <dt class="text-muted-foreground">擁有者</dt>
           <dd><code>{{ application.ownerMemberId }}</code></dd>
           <dt class="text-muted-foreground">聯絡窗口</dt>
