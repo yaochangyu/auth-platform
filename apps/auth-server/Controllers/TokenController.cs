@@ -10,7 +10,7 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AuthServer.Controllers;
 
-public class TokenController(AuthServerDbContext dbContext) : Controller
+public class TokenController(IMemberDirectory members) : Controller
 {
     // Code / Refresh Token 的驗證（PKCE、Client 認證、單次使用、輪替與重複使用偵測）皆由 OpenIddict 在到達此處前完成，
     // 這裡只需把已驗證票據內的身分原樣簽發成新的 Token。
@@ -35,8 +35,11 @@ public class TokenController(AuthServerDbContext dbContext) : Controller
         var principal = result.Principal!;
 
         // 會員改密碼/重設後 Security Stamp 已變更（ADR 0002），先前核發的 Code 與 Refresh Token 一律失效。
-        if (!Guid.TryParse(principal.GetClaim(Claims.Subject), out var memberId)
-            || principal.GetClaim(MemberStamp.ClaimType) != await MemberStamp.GetCurrentAsync(dbContext, memberId, this.HttpContext.RequestAborted))
+        // 一次查詢同時取得 Security Stamp 與 Role；會員不存在（member 為 null）同樣視為登入狀態已變更。
+        var member = Guid.TryParse(principal.GetClaim(Claims.Subject), out var memberId)
+            ? await members.GetAsync(memberId, this.HttpContext.RequestAborted)
+            : null;
+        if (member is null || principal.GetClaim(MemberStamp.ClaimType) != member.SecurityStamp)
         {
             return this.Forbid(
                 new AuthenticationProperties(new Dictionary<string, string?>
@@ -51,8 +54,7 @@ public class TokenController(AuthServerDbContext dbContext) : Controller
         // 未授予 admin_api 範疇的 Token 一律不帶角色，第三方看不到會員是否為管理員。
         if (principal.HasScope(AuthScopes.AdminApi))
         {
-            var role = await MemberRole.GetCurrentAsync(dbContext, memberId, this.HttpContext.RequestAborted) ?? "member";
-            principal.SetClaim(MemberRole.ClaimType, role);
+            principal.SetClaim(MemberRole.ClaimType, member.Role);
             principal.Claims.First(claim => claim.Type == MemberRole.ClaimType).SetDestinations(Destinations.AccessToken);
         }
 

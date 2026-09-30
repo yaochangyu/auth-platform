@@ -8,7 +8,7 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace AuthServer.Controllers;
 
-public class UserInfoController(AuthServerDbContext dbContext) : Controller
+public class UserInfoController(IMemberDirectory members) : Controller
 {
     // Access Token 的簽章、過期與 Bearer 標頭解析由 OpenIddict Validation 處理，失敗時回 401 與 WWW-Authenticate。
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
@@ -26,7 +26,7 @@ public class UserInfoController(AuthServerDbContext dbContext) : Controller
         }
 
         if (!Guid.TryParse(this.User.GetClaim(Claims.Subject), out var memberId)
-            || await MemberProfileReader.GetAsync(dbContext, memberId, this.HttpContext.RequestAborted) is not { } member)
+            || await members.GetAsync(memberId, this.HttpContext.RequestAborted) is not { } member)
         {
             return this.Challenge(
                 Properties(Errors.InvalidToken, "Access Token 對應的會員不存在。"),
