@@ -18,8 +18,76 @@ using Microsoft.EntityFrameworkCore;
 using MemberApi.Email;
 using MemberApi.Security;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 5);
+var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:LoginPermitLimit", 15);
+var windowSeconds = builder.Configuration.GetValue("RateLimiting:WindowSeconds", 60);
+var segmentsPerWindow = builder.Configuration.GetValue("RateLimiting:SegmentsPerWindow", 6);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var retryAfterSeconds = windowSeconds;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+        }
+
+        context.HttpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
+        var problemDetailsService = context.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+        await problemDetailsService.WriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = context.HttpContext,
+            ProblemDetails = new ProblemDetails
+            {
+                Type = "https://auth.1111.com.tw/errors/too-many-requests",
+                Title = "請求頻率過高，請稍候再試",
+                Status = StatusCodes.Status429TooManyRequests,
+                Detail = $"請求頻率超出限制，請於 {retryAfterSeconds} 秒後重試。",
+            },
+        });
+    };
+
+    options.AddPolicy(RateLimitingPolicies.PublicAuth, httpContext =>
+    {
+        var clientIp = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown-client";
+        var endpointPath = httpContext.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+        var partitionKey = $"{clientIp}:{endpointPath}";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromSeconds(windowSeconds),
+            SegmentsPerWindow = segmentsPerWindow,
+            QueueLimit = 0,
+        });
+    });
+
+    options.AddPolicy(RateLimitingPolicies.Login, httpContext =>
+    {
+        var clientIp = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown-client";
+        var endpointPath = httpContext.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+        var partitionKey = $"{clientIp}:{endpointPath}";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = loginPermitLimit,
+            Window = TimeSpan.FromSeconds(windowSeconds),
+            SegmentsPerWindow = segmentsPerWindow,
+            QueueLimit = 0,
+        });
+    });
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -259,6 +327,8 @@ if (requireHttps)
 {
     app.UseHttpsRedirection();
 }
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

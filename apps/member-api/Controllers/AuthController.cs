@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MemberApi.Controllers;
 
@@ -26,10 +27,13 @@ public class AuthController(
     IValidator<ResetPasswordRequest> resetPasswordValidator) : MemberApiControllerBase
 {
     private const string ForgotPasswordAcceptedMessage = "若該信箱已在平台註冊，系統將寄出重設密碼說明信件，請於 15 分鐘內完成重設。";
+
     [HttpPost("register")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await registerValidator.ValidateAsync(request, cancellationToken);
@@ -51,11 +55,13 @@ public class AuthController(
     }
 
     [HttpPost("verify-email")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
     [ProducesResponseType(typeof(VerifyEmailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await verifyEmailValidator.ValidateAsync(request, cancellationToken);
@@ -84,11 +90,13 @@ public class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitingPolicies.Login)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(LockoutProblemDetails), StatusCodes.Status423Locked)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await loginValidator.ValidateAsync(request, cancellationToken);
@@ -152,6 +160,7 @@ public class AuthController(
     }
 
     [HttpPost("forgot-password")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
     [ProducesResponseType(typeof(ForgotPasswordResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
@@ -166,6 +175,7 @@ public class AuthController(
         var outcome = await forgotPasswordHandler.HandleAsync(request, cancellationToken);
         if (outcome == ForgotPasswordOutcome.RateLimited)
         {
+            this.Response.Headers.RetryAfter = "60";
             return this.Problem(
                 type: "https://auth.1111.com.tw/errors/too-many-requests",
                 title: "請求頻率過高，請稍候再試",
@@ -176,10 +186,12 @@ public class AuthController(
     }
 
     [HttpPost("reset-password")]
+    [EnableRateLimiting(RateLimitingPolicies.PublicAuth)]
     [ProducesResponseType(typeof(ResetPasswordResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await resetPasswordValidator.ValidateAsync(request, cancellationToken);
