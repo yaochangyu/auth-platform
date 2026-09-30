@@ -42,16 +42,18 @@ public class DualSchemeMemberProfileSteps(PostgreSqlTestBase testBase, ScenarioC
     [Given("授權中心已為該會員簽發包含 \"([^\"]*)\" 範疇與合法 \"sub\" 之 RS256 Bearer Token")]
     public void Given授權中心已為該會員簽發包含範疇與合法Sub之BearerToken(string scope)
     {
-        Assert.NotNull(this._currentMember);
-        this._currentToken = TestJwtIssuer.Create(this._currentMember!.Id, scope);
+        var member = this._currentMember ?? scenarioContext.Get<Member>("member");
+        Assert.NotNull(member);
+        this._currentToken = TestJwtIssuer.Create(member.Id, scope);
         scenarioContext.Set(this._currentToken, "bearerToken");
     }
 
     [Given("授權中心已為該會員簽發僅包含 \"([^\"]*)\" 但無 \"([^\"]*)\" 範疇之 Bearer Token")]
     public void Given授權中心已為該會員簽發僅包含但無範疇之BearerToken(string scope, string ignored)
     {
-        Assert.NotNull(this._currentMember);
-        this._currentToken = TestJwtIssuer.Create(this._currentMember!.Id, scope);
+        var member = this._currentMember ?? scenarioContext.Get<Member>("member");
+        Assert.NotNull(member);
+        this._currentToken = TestJwtIssuer.Create(member.Id, scope);
         scenarioContext.Set(this._currentToken, "bearerToken");
     }
 

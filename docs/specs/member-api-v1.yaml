@@ -357,6 +357,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
 
+    patch:
+      tags:
+        - Member Profile
+      summary: 增量補填/更新會員個人檔案 (Incremental Profile Update)
+      description: |
+        支援增量屬性補填與欄位級可變性策略防護（Field Mutability Policies）：
+        - 自由流動欄位（最高學歷、通訊地址、職稱）：可隨時自主更新。
+        - 防弊特徵欄位（生日）：採 Write-Once（填寫後鎖定）原則，未填寫時允許首次補填，已存在值時嘗試覆寫將回傳 409 Conflict。
+        支援第一方瀏覽器會話 Cookie 或攜帶 profile/profile:write scope 之 Bearer Token 雙軌鑑權調用。
+      operationId: updateMemberProfile
+      security:
+        - SessionCookieAuth: []
+        - OAuth2BearerAuth:
+            - profile
+        - OAuth2BearerAuth:
+            - "profile:write"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberProfileRequest'
+      responses:
+        '200':
+          description: 個人檔案更新成功，回傳最新個人檔案資料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberProfileResponse'
+        '400':
+          description: 欄位格式錯誤（如生日日期格式無效或超過今天）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetails'
+        '401':
+          description: 未提供有效憑據或會話已失效
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: 權限不足，Bearer Token 缺少必要的 profile 存取範疇 (Scope)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: 查無該會員資料
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: 欄位可變性衝突（生日屬性已存在且受 Write-Once 保護，不允許覆寫）
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
 
   /api/v1/member/password:
     put:
@@ -858,6 +918,52 @@ components:
           nullable: true
           description: 最後更新時間
           example: "2026-09-28T15:30:00Z"
+        birthday:
+          type: string
+          format: date
+          nullable: true
+          description: 生日（Write-Once 防弊特徵欄位，填寫後鎖定不允許修改）
+          example: "1990-05-20"
+        education:
+          type: string
+          nullable: true
+          description: 最高學歷（自由流動欄位）
+          example: "碩士"
+        address:
+          type: string
+          nullable: true
+          description: 通訊地址（自由流動欄位）
+          example: "台北市信義區信義路五段7號"
+        jobTitle:
+          type: string
+          nullable: true
+          description: 目前職稱（自由流動欄位）
+          example: "資深軟體工程師"
+
+    UpdateMemberProfileRequest:
+      type: object
+      description: 增量補填個人檔案請求參數（所有欄位均為可選）
+      properties:
+        birthday:
+          type: string
+          format: date
+          description: 生日（首次補填放行，已存在生日時嘗試覆寫不同生日則回傳 409 衝突）
+          example: "1990-05-20"
+        education:
+          type: string
+          maxLength: 50
+          description: 最高學歷（自由流動欄位，隨時覆寫更新）
+          example: "碩士"
+        address:
+          type: string
+          maxLength: 200
+          description: 通訊地址（自由流動欄位，隨時覆寫更新）
+          example: "台北市信義區信義路五段7號"
+        jobTitle:
+          type: string
+          maxLength: 50
+          description: 目前職稱（自由流動欄位，隨時覆寫更新）
+          example: "資深軟體工程師"
 
     ChangePasswordRequest:
       type: object

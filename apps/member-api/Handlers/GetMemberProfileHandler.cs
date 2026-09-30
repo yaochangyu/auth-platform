@@ -20,6 +20,10 @@ public class GetMemberProfileHandler(IMemberRepository memberRepository) : IGetM
             member.Status,
             member.EmailVerifiedAt,
             member.CreatedAt,
-            UpdatedAt: null);
+            member.UpdatedAt,
+            member.Birthday,
+            member.Education,
+            member.Address,
+            member.JobTitle);
     }
 }

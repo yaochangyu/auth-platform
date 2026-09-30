@@ -31,6 +31,7 @@ builder.Services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
 builder.Services.AddScoped<IValidator<ForgotPasswordRequest>, ForgotPasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<ResetPasswordRequest>, ResetPasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
+builder.Services.AddScoped<IValidator<UpdateMemberProfileRequest>, UpdateMemberProfileRequestValidator>();
 
 // ponytail: 容器化本機驗證環境沒有 TLS 終止，Secure Cookie 在純 HTTP 下無法寫入；
 // 以設定檔控制而非寫死，正式環境維持預設安全值，docker-compose 才需要放寬。
@@ -196,6 +197,22 @@ builder.Services.AddAuthorization(options =>
             return scopes.Contains("profile");
         }));
 
+    options.AddPolicy("ProfileWriteAccess", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+        {
+            // Cookie 鑑權（第一方瀏覽器會話）：擁有完整個人檔案寫入權限
+            if (context.User.Identity?.AuthenticationType == CookieAuthenticationDefaults.AuthenticationScheme)
+            {
+                return true;
+            }
+
+            // Bearer Token 鑑權：必須具備 profile:write 或 profile scope
+            var scopes = context.User.FindAll("scope")
+                .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            return scopes.Contains("profile:write") || scopes.Contains("profile");
+        }));
+
     options.AddPolicy("FirstPartyOnly", policy => policy
         .RequireAuthenticatedUser()
         .RequireAssertion(context =>
@@ -220,6 +237,7 @@ builder.Services.AddScoped<ILoginHandler, LoginHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
 builder.Services.AddScoped<IGetMemberProfileHandler, GetMemberProfileHandler>();
+builder.Services.AddScoped<IUpdateMemberProfileHandler, UpdateMemberProfileHandler>();
 builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IListConnectedAppsHandler, ListConnectedAppsHandler>();
 builder.Services.AddScoped<IRevokeConnectedAppHandler, RevokeConnectedAppHandler>();

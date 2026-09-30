@@ -26,4 +26,15 @@ public class Member
     public DateTimeOffset? EmailVerifiedAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset? UpdatedAt { get; set; }
+
+    // Issue #25: 增量屬性補填
+    public DateOnly? Birthday { get; set; }
+
+    public string? Education { get; set; }
+
+    public string? Address { get; set; }
+
+    public string? JobTitle { get; set; }
 }
