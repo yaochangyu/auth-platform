@@ -20,6 +20,8 @@ public static class ClientSeeder
 
         await SeedClientAsync(applications, "member-web-spa", "會員中心", ConsentTypes.Implicit, clientSecret: null, standardScopes,
             ["https://member.1111.com.tw/oauth/callback", "http://localhost:5173/oauth/callback", .. Extra("member-web-spa")]);
+        await SeedClientAsync(applications, "native-mobile-app", "官方行動 App", ConsentTypes.Implicit, clientSecret: null, standardScopes,
+            ["https://app.1111.com.tw/oauth/callback", .. Extra("native-mobile-app")]);
         await SeedClientAsync(applications, "demo-third-party-app", "示範第三方應用程式", ConsentTypes.Explicit, clientSecret: null, standardScopes,
             ["https://demo.1111.com.tw/callback", .. Extra("demo-third-party-app")]);
 
@@ -56,6 +58,7 @@ public static class ClientSeeder
             {
                 Permissions.Endpoints.Authorization,
                 Permissions.Endpoints.Token,
+                Permissions.Endpoints.Revocation,
                 Permissions.GrantTypes.AuthorizationCode,
                 Permissions.GrantTypes.RefreshToken,
                 Permissions.ResponseTypes.Code,

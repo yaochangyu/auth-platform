@@ -73,6 +73,7 @@ public class OAuthClientRepository(IOpenIddictApplicationManager applications, T
         descriptor.Permissions.UnionWith([
             Permissions.Endpoints.Authorization,
             Permissions.Endpoints.Token,
+            Permissions.Endpoints.Revocation,
             Permissions.GrantTypes.AuthorizationCode,
             Permissions.ResponseTypes.Code,
             .. request.Scopes.Select(scope => Permissions.Prefixes.Scope + scope),

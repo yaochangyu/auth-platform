@@ -69,6 +69,7 @@ builder.Services.AddOpenIddict()
         options.SetAuthorizationEndpointUris("/connect/authorize")
             .SetTokenEndpointUris("/connect/token")
             .SetUserInfoEndpointUris("/connect/userinfo")
+            .SetRevocationEndpointUris("/connect/revocation")
             .SetConfigurationEndpointUris("/.well-known/openid-configuration")
             .SetJsonWebKeySetEndpointUris("/.well-known/jwks.json");
 

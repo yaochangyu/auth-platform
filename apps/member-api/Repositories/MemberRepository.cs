@@ -101,4 +101,19 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
     {
         return dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task RevokeAllTokensForMemberAsync(Guid memberId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var subject = memberId.ToString();
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE openiddict_tokens SET status = 'revoked' WHERE subject = {subject} AND status = 'valid'",
+                cancellationToken);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            // 在獨立測試環境或 auth-server 資料表尚未建立時略過
+        }
+    }
 }

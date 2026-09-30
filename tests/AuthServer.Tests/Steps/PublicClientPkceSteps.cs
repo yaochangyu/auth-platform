@@ -7,20 +7,19 @@ using Reqnroll;
 namespace AuthServer.Tests.Steps;
 
 [Binding]
-public class PublicClientPkceSteps(AuthServerTestBase testBase, AuthorizeSteps authorize, TokenSteps token)
+public class PublicClientPkceSteps(AuthorizeSteps authorize, TokenSteps token)
 {
     private string _clientId = string.Empty;
     private string _redirectUri = string.Empty;
     private string _code = string.Empty;
 
     [Given("已註冊原生 App 公用客戶端 \"(.*)\"，其 Universal Link 為 \"(.*)\"")]
-    public async Task Given已註冊原生App公用客戶端(string clientId, string redirectUri)
+    public Task Given已註冊原生App公用客戶端(string clientId, string redirectUri)
     {
         this._clientId = clientId;
         this._redirectUri = redirectUri;
         AuthorizeSteps.RedirectUris[clientId] = redirectUri;
-        await TestClientSeeder.SavePublicAppAsync(
-            testBase.Factory.Services, clientId, redirectUri, "openid", "profile", "email", "offline_access");
+        return Task.CompletedTask;
     }
 
     [When("原生 App \"(.*)\" 以合法的 S256 PKCE 與重定向網址發起授權請求")]
@@ -94,6 +93,7 @@ public class PublicClientPkceSteps(AuthServerTestBase testBase, AuthorizeSteps a
         Assert.False(string.IsNullOrEmpty(this._code));
     }
 
+    [Given("原生 App \"(.*)\" 僅以 code_verifier 換票且不帶 client_secret")]
     [When("原生 App \"(.*)\" 僅以 code_verifier 換票且不帶 client_secret")]
     public async Task When以Verifier換票(string clientId)
     {

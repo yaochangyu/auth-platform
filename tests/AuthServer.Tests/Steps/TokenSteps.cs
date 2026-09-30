@@ -32,6 +32,8 @@ public class TokenSteps(AuthServerTestBase testBase, AuthorizeSteps authorize)
 
     public string AccessToken => this._token.GetProperty("access_token").GetString()!;
 
+    public string CurrentRefreshToken => this._refreshToken;
+
     [Given("已以 Client \"(.*)\" 取得僅含範疇 \"(.*)\" 的 Access Token")]
     public async Task Given取得指定範疇的AccessToken(string clientId, string scopes)
     {

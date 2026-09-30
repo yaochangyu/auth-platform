@@ -21,6 +21,7 @@ public class ChangePasswordHandler(IMemberRepository memberRepository, IPassword
         // 當前裝置由 Controller 在回應中以新戳記重新發行 Session Cookie，維持登入狀態。
         member.SecurityStamp = Guid.NewGuid().ToString("N");
 
+        await memberRepository.RevokeAllTokensForMemberAsync(member.Id, cancellationToken);
         await memberRepository.SaveChangesAsync(cancellationToken);
 
         return new ChangePasswordResult(ChangePasswordOutcome.Success, member);

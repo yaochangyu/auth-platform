@@ -31,6 +31,7 @@ public class ResetPasswordHandler(IMemberRepository memberRepository, IPasswordH
         // ADR-0002：刷新安全戳記，Cookie 驗證中介層比對此值時會發現不一致，使所有歷史裝置的 Session 立即失效
         member.SecurityStamp = Guid.NewGuid().ToString("N");
 
+        await memberRepository.RevokeAllTokensForMemberAsync(member.Id, cancellationToken);
         await memberRepository.SaveChangesAsync(cancellationToken);
 
         return ResetPasswordOutcome.Success;

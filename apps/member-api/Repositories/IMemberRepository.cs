@@ -31,5 +31,7 @@ public interface IMemberRepository
         TimeSpan lockoutDuration,
         CancellationToken cancellationToken);
 
+    Task RevokeAllTokensForMemberAsync(Guid memberId, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

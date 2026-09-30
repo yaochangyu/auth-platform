@@ -115,6 +115,7 @@ public static class TestClientSeeder
             {
                 Permissions.Endpoints.Authorization,
                 Permissions.Endpoints.Token,
+                Permissions.Endpoints.Revocation,
                 Permissions.GrantTypes.AuthorizationCode,
                 Permissions.GrantTypes.RefreshToken,
                 Permissions.ResponseTypes.Code,
@@ -129,6 +130,7 @@ public static class TestClientSeeder
 
         if (await applications.FindByClientIdAsync(clientId) is { } existing)
         {
+            await applications.PopulateAsync(descriptor, existing);
             await applications.UpdateAsync(existing, descriptor);
         }
         else
