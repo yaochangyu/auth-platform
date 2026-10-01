@@ -35,3 +35,10 @@ Feature: 管理員角色 claim 與 admin_api 範疇
     When 以 Client "member-web-spa" 及合法的 PKCE 參數並要求範疇 "openid、admin_api" 發起授權請求
     Then 回應狀態碼應為 400
     And 回應內容應包含錯誤碼 "invalid_request"
+
+  Scenario: 管理後台 Client 取得包含 email 範疇的 Access Token 並查詢 UserInfo 包含 email
+    Given 該會員的角色為 "admin"
+    And 已以 Client "admin-web" 取得僅含範疇 "openid、profile、email、admin_api" 的 Access Token
+    When 以 Bearer Access Token 呼叫 GET /connect/userinfo
+    Then 回應狀態碼應為 200
+    And 回應的 email 應為會員的 Email
