@@ -5,7 +5,7 @@ using MemberApi.Security;
 
 namespace MemberApi.Handlers;
 
-public class VerifyEmailHandler(IMemberRepository memberRepository, TimeProvider timeProvider) : IVerifyEmailHandler
+public class VerifyEmailHandler(IMemberRepository memberRepository, TimeProvider timeProvider)
 {
     public async Task<VerifyEmailResult> VerifyAsync(VerifyEmailRequest request, CancellationToken cancellationToken)
     {

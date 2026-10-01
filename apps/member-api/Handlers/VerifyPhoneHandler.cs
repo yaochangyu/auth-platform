@@ -6,10 +6,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MemberApi.Handlers;
 
+public enum VerifyPhoneOutcome
+{
+    Success,
+    InvalidCode,
+    Expired,
+    MaxAttemptsReached,
+    PhoneAlreadyBound,
+    MemberNotFound,
+}
+
+public record VerifyPhoneResult(
+    VerifyPhoneOutcome Outcome,
+    string? Message = null,
+    DateTimeOffset? VerifiedAt = null);
+
 public class VerifyPhoneHandler(
     ISmsOtpService smsOtpService,
     MemberApiDbContext dbContext,
-    TimeProvider timeProvider) : IVerifyPhoneHandler
+    TimeProvider timeProvider)
 {
     public async Task<VerifyPhoneResult> HandleAsync(VerifyPhoneRequest request, Guid? currentMemberId, CancellationToken cancellationToken)
     {

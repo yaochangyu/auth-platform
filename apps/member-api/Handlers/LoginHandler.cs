@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace MemberApi.Handlers;
 
-public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Member> passwordHasher, TimeProvider timeProvider) : ILoginHandler
+public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Member> passwordHasher, TimeProvider timeProvider)
 {
     public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {

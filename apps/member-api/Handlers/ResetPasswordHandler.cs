@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace MemberApi.Handlers;
 
-public class ResetPasswordHandler(IMemberRepository memberRepository, IPasswordHasher<Member> passwordHasher, TimeProvider timeProvider) : IResetPasswordHandler
+public class ResetPasswordHandler(IMemberRepository memberRepository, IPasswordHasher<Member> passwordHasher, TimeProvider timeProvider)
 {
     public async Task<ResetPasswordOutcome> HandleAsync(ResetPasswordRequest request, CancellationToken cancellationToken)
     {

@@ -5,7 +5,7 @@ using MemberApi.Security;
 
 namespace MemberApi.Handlers;
 
-public class ForgotPasswordHandler(IMemberRepository memberRepository, TimeProvider timeProvider) : IForgotPasswordHandler
+public class ForgotPasswordHandler(IMemberRepository memberRepository, TimeProvider timeProvider)
 {
     private static readonly TimeSpan CooldownDuration = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan TokenLifetime = TimeSpan.FromMinutes(15);

@@ -5,11 +5,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MemberApi.Handlers;
 
+public enum SendSmsOtpOutcome
+{
+    Success,
+    RateLimited,
+    Failed,
+}
+
+public record SendSmsOtpResult(SendSmsOtpOutcome Outcome, string? Message = null, int RetryAfterSeconds = 60);
+
 public class SendSmsOtpHandler(
     ISmsOtpService smsOtpService,
     ISmsSender smsSender,
     MemberApiDbContext dbContext,
-    TimeProvider timeProvider) : ISendSmsOtpHandler
+    TimeProvider timeProvider)
 {
     private static readonly TimeSpan CooldownDuration = TimeSpan.FromSeconds(60);
 

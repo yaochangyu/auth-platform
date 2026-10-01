@@ -9,7 +9,7 @@ namespace MemberApi.Handlers;
 public class RegisterMemberHandler(
     IMemberRepository memberRepository,
     IPasswordHasher<Member> passwordHasher,
-    TimeProvider timeProvider) : IRegisterMemberHandler
+    TimeProvider timeProvider)
 {
     private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(24);
 

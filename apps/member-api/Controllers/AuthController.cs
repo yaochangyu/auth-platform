@@ -15,18 +15,18 @@ namespace MemberApi.Controllers;
 [ApiController]
 [Route("api/v1/auth")]
 public class AuthController(
-    IRegisterMemberHandler registerMemberHandler,
-    IVerifyEmailHandler verifyEmailHandler,
-    ILoginHandler loginHandler,
-    IForgotPasswordHandler forgotPasswordHandler,
-    IResetPasswordHandler resetPasswordHandler,
+    RegisterMemberHandler registerMemberHandler,
+    VerifyEmailHandler verifyEmailHandler,
+    LoginHandler loginHandler,
+    ForgotPasswordHandler forgotPasswordHandler,
+    ResetPasswordHandler resetPasswordHandler,
     IValidator<RegisterRequest> registerValidator,
     IValidator<VerifyEmailRequest> verifyEmailValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<ForgotPasswordRequest> forgotPasswordValidator,
     IValidator<ResetPasswordRequest> resetPasswordValidator,
-    ISendSmsOtpHandler sendSmsOtpHandler,
-    IVerifyPhoneHandler verifyPhoneHandler,
+    SendSmsOtpHandler sendSmsOtpHandler,
+    VerifyPhoneHandler verifyPhoneHandler,
     IValidator<SendSmsOtpRequest> sendSmsOtpValidator,
     IValidator<VerifyPhoneRequest> verifyPhoneValidator) : MemberApiControllerBase
 {
