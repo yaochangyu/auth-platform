@@ -23,7 +23,7 @@ test('管理後台登入頁渲染', async ({ page }) => {
 // 走瀏覽器 page 才吃得到 --host-resolver-rules（request fixture 不會）
 test('AuthServer discovery 端點回應 issuer', async ({ page }) => {
   const res = await page.goto('http://auth.1111.com.tw:8091/.well-known/openid-configuration')
-  expect(res!.status()).toBe(200)
+  expect(res?.ok()).toBe(true)
   expect((await res!.json()).issuer).toBe('http://auth.1111.com.tw:8091/')
 })
 

@@ -10,8 +10,9 @@ export class MailpitClient {
       const res = await fetch(`${this.base}/search?query=${encodeURIComponent(query)}`)
       const { messages } = (await res.json()) as { messages: { ID: string }[] }
       if (!messages?.length) return undefined
-      const msg = (await (await fetch(`${this.base}/message/${messages[0].ID}`)).json()) as { Text: string }
-      return /token=([\w-]+)/.exec(msg.Text)?.[1]
+      const msg = (await (await fetch(`${this.base}/message/${messages[0].ID}`)).json()) as { Text?: string; HTML?: string }
+      const body = msg.Text || msg.HTML || ''
+      return /token=([\w-]+)/.exec(body)?.[1]
     }, `${to} 的信件 token`, timeoutMs)
   }
 

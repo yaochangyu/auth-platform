@@ -7,10 +7,10 @@ export class SmspitClient {
   async waitForOtp(phone: string, timeoutMs?: number): Promise<string> {
     return poll(async () => {
       const { messages } = (await (await fetch(`${this.base}/messages`)).json()) as {
-        messages: { to: string; message: string; createdAt: string }[]
+        messages?: { to: string; message: string; createdAt: string }[]
       }
       const latest = messages
-        .filter((m) => m.to === phone)
+        ?.filter((m) => m.to === phone)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
       return latest && /(?<!\d)(\d{6})(?!\d)/.exec(latest.message)?.[1]
     }, `${phone} 的簡訊 OTP`, timeoutMs)
