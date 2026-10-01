@@ -43,3 +43,8 @@ router.beforeEach(async (to) => {
 
   return true
 })
+
+// 表單回饋（錯誤、註冊結果）是跨頁共用的 Store 狀態，換頁時清掉，避免登入頁的錯誤殘留到註冊頁。
+router.afterEach(() => {
+  useAuthStore().clearFeedback()
+})
