@@ -1,4 +1,4 @@
-import { justLoggedIn, useOAuth } from '@/composables/useOAuth'
+import { useOAuth } from '@/composables/useOAuth'
 import { useAuthStore } from '@/stores/auth'
 import type { ProblemDetails } from '@/types/problem'
 
@@ -15,9 +15,10 @@ export async function apiRequest(path: string, init: RequestInit = {}): Promise<
   })
 
   // Access Token 過期或被撤銷：清除後走 SSO 無感重新登入，回到目前頁面。
+  const { justLoggedIn, startLogin } = useOAuth()
   if (response.status === 401 && !justLoggedIn()) {
     auth.clear()
-    await useOAuth().startLogin(window.location.pathname + window.location.search)
+    await startLogin(window.location.pathname + window.location.search)
   }
 
   return response

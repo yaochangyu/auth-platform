@@ -17,6 +17,7 @@ export default defineConfig({
     proxy: {
       '/api': process.env.VITE_DEV_API_TARGET ?? 'http://localhost:5104',
       '/connect/token': process.env.VITE_DEV_AUTH_TARGET ?? 'http://localhost:5102',
+      '/connect/userinfo': process.env.VITE_DEV_AUTH_TARGET ?? 'http://localhost:5102',
     },
   },
 })
