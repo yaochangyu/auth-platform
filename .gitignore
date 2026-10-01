@@ -41,3 +41,8 @@ Thumbs.db
 # Auth Server 簽章/加密金鑰
 auth-signing-key.pem
 auth-encryption.key
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
