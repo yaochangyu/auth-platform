@@ -39,7 +39,7 @@ public class TokenController(IMemberDirectory members) : Controller
         var member = Guid.TryParse(principal.GetClaim(Claims.Subject), out var memberId)
             ? await members.GetAsync(memberId, this.HttpContext.RequestAborted)
             : null;
-        if (member is null || principal.GetClaim(MemberStamp.ClaimType) != member.SecurityStamp)
+        if (member is null || principal.GetClaim(MemberSnapshot.SecurityStampClaim) != member.SecurityStamp)
         {
             return this.Forbid(
                 new AuthenticationProperties(new Dictionary<string, string?>
@@ -54,8 +54,8 @@ public class TokenController(IMemberDirectory members) : Controller
         // 未授予 admin_api 範疇的 Token 一律不帶角色，第三方看不到會員是否為管理員。
         if (principal.HasScope(AuthScopes.AdminApi))
         {
-            principal.SetClaim(MemberRole.ClaimType, member.Role);
-            principal.Claims.First(claim => claim.Type == MemberRole.ClaimType).SetDestinations(Destinations.AccessToken);
+            principal.SetClaim(Claims.Role, member.Role);
+            principal.Claims.First(claim => claim.Type == Claims.Role).SetDestinations(Destinations.AccessToken);
         }
 
         return this.SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);

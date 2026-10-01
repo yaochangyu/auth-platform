@@ -93,13 +93,13 @@ public class AuthorizationController(
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
         identity.SetClaim(Claims.Subject, memberId);
-        identity.SetClaim(MemberStamp.ClaimType, session.Principal.FindFirstValue(MemberStamp.ClaimType));
+        identity.SetClaim(MemberSnapshot.SecurityStampClaim, session.Principal.FindFirstValue(MemberSnapshot.SecurityStampClaim));
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
         principal.SetAuthorizationId(authorizationId);
         // Security Stamp 不放任何 JWT，只留在 Authorization Code / Refresh Token 內，換票時用來比對會員密碼是否已變更。
-        principal.SetDestinations(claim => claim.Type == MemberStamp.ClaimType
+        principal.SetDestinations(claim => claim.Type == MemberSnapshot.SecurityStampClaim
             ? []
             : [Destinations.AccessToken, Destinations.IdentityToken]);
 

@@ -30,16 +30,16 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         {
             // ADR-0002：Security Stamp 與資料庫不符（密碼已變更/重設）即視為未登入；缺少 claim 一律 fail-closed。
             var memberIdText = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var stamp = context.Principal?.FindFirstValue(MemberStamp.ClaimType);
+            var stamp = context.Principal?.FindFirstValue(MemberSnapshot.SecurityStampClaim);
             if (!Guid.TryParse(memberIdText, out var memberId) || stamp is null)
             {
                 context.RejectPrincipal();
                 return;
             }
 
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<AuthServerDbContext>();
-            var currentStamp = await MemberStamp.GetCurrentAsync(dbContext, memberId, context.HttpContext.RequestAborted);
-            if (currentStamp != stamp)
+            var members = context.HttpContext.RequestServices.GetRequiredService<IMemberDirectory>();
+            var member = await members.GetAsync(memberId, context.HttpContext.RequestAborted);
+            if (member?.SecurityStamp != stamp)
             {
                 context.RejectPrincipal();
             }
