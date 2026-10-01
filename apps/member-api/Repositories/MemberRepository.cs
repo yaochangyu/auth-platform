@@ -62,6 +62,7 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
 
     public async Task<LoginLockoutState?> RegisterFailedLoginAsync(Guid memberId, DateTimeOffset now, CancellationToken cancellationToken)
     {
+        // FOR UPDATE 列鎖只在交易內有效：鎖定→讀取→政策計算→寫回須原子完成，防止並行失敗計數 Lost Update。
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var current = await dbContext.Database
