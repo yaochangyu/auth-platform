@@ -7,6 +7,8 @@ const AUTH_SERVER_URL = import.meta.env.VITE_AUTH_SERVER_URL ?? 'http://localhos
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL ?? '/connect/token'
 // 與 Token 端點一樣走同源代理，避免跨網域 CORS。
 const USERINFO_URL = import.meta.env.VITE_USERINFO_URL ?? '/connect/userinfo'
+// 會員 Session Cookie 由 member-api 簽發，登出也要由它註銷；與 Token 端點一樣走同源代理（member-api 沒有開 CORS）。
+const LOGOUT_URL = import.meta.env.VITE_LOGOUT_URL ?? '/api/v1/auth/logout'
 const CLIENT_ID = 'admin-web'
 const SCOPE = 'openid profile email admin_api'
 
@@ -126,6 +128,19 @@ export const useAuthStore = defineStore('auth', () => {
     return safeReturnPath(returnPath)
   }
 
+  // Single Sign-Out：註銷網域 Session Cookie 並清空本地狀態。網路或伺服器失敗不阻擋本地登出；
+  // 清空後重新走登入流程（Cookie 已註銷時會落到會員登入頁）。
+  async function logout() {
+    try {
+      await fetch(LOGOUT_URL, { method: 'POST', credentials: 'include' })
+    } catch {
+      // 忽略：本地狀態仍須清空。
+    } finally {
+      clear()
+      await startLogin('/applications')
+    }
+  }
+
   // 剛完成登入卻又被 API 回 401，代表重新登入也無法解決（例如 Token 不被 API 接受），此時不能再導向登入，否則會無限迴圈。
   const justLoggedIn = () => Date.now() - Number(sessionStorage.getItem(LAST_LOGIN_KEY) ?? 0) < RELOGIN_GUARD_MS
 
@@ -142,5 +157,6 @@ export const useAuthStore = defineStore('auth', () => {
     startLogin,
     completeLogin,
     justLoggedIn,
+    logout,
   }
 })
