@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using AuthShared.Hmac;
+using DeveloperApi.Security.Hmac;
 using AuthShared.Web;
 using DeveloperApi.Contracts;
 using Microsoft.AspNetCore.Authorization;

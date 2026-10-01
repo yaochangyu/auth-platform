@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AuthShared.Hmac;
+namespace DeveloperApi.Security.Hmac;
 
 /// <summary>
 /// HMAC-SHA256 請求簽章（Server-to-Server 防竄改、防重放）。

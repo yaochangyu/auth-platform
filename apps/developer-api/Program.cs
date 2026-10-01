@@ -7,7 +7,7 @@ using DeveloperApi.Repositories;
 using DeveloperApi.Security;
 using Microsoft.AspNetCore.DataProtection;
 using DeveloperApi.Validators;
-using AuthShared.Hmac;
+using DeveloperApi.Security.Hmac;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;

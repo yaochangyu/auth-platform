@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AuthShared.Hmac;
+namespace DeveloperApi.Security.Hmac;
 
 /// <summary>由 API Key 找出用來驗簽的 API Secret 與此金鑰對應的身分 claims；金鑰不存在、已過期或已作廢時回傳 null。</summary>
 public record HmacCredential(string Secret, IReadOnlyList<Claim> Claims);

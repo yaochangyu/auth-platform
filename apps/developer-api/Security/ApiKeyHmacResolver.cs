@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
-using AuthShared.Hmac;
+using DeveloperApi.Security.Hmac;
 using DeveloperApi.Entities;
 using DeveloperApi.Repositories;
 
