@@ -1,3 +1,5 @@
+using MemberApi.Domain;
+
 namespace MemberApi.Entities;
 
 public class Member
@@ -42,4 +44,12 @@ public class Member
     public string? PhoneNumber { get; set; }
 
     public DateTimeOffset? PhoneVerifiedAt { get; set; }
+
+    public LoginLockoutState Lockout => new(this.FailedLoginAttempts, this.LockoutEndAt);
+
+    public void ApplyLockout(LoginLockoutState state)
+    {
+        this.FailedLoginAttempts = state.FailedLoginAttempts;
+        this.LockoutEndAt = state.LockoutEndAt;
+    }
 }

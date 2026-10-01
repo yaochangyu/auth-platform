@@ -1,3 +1,4 @@
+using MemberApi.Domain;
 using MemberApi.Entities;
 
 namespace MemberApi.Repositories;
@@ -23,14 +24,12 @@ public interface IMemberRepository
     void AddOutboxMessage(OutboxMessage outboxMessage);
 
     /// <summary>
-    /// 以單一原子 UPDATE ... RETURNING 遞增登入失敗次數，達門檻時同時設定鎖定截止時間。
-    /// 避免多個並行請求各自讀取-遞增-寫回（Lost Update），確保並行密碼錯誤時計數精確累加。
+    /// 鎖定列後讀出目前的鎖定狀態，以 <paramref name="transition"/> 計算新狀態並寫回（同一交易），回傳新狀態；會員不存在回傳 null。
+    /// 並行的密碼錯誤因列鎖而序列化，計數不會 Lost Update。規則本身在 LoginLockoutPolicy，這裡只負責存取。
     /// </summary>
-    Task<(int FailedLoginAttempts, DateTimeOffset? LockoutEndAt)?> RegisterFailedLoginAsync(
+    Task<LoginLockoutState?> UpdateLockoutAsync(
         Guid memberId,
-        DateTimeOffset now,
-        int maxAttempts,
-        TimeSpan lockoutDuration,
+        Func<LoginLockoutState, LoginLockoutState> transition,
         CancellationToken cancellationToken);
 
     Task RevokeAllTokensForMemberAsync(Guid memberId, CancellationToken cancellationToken);

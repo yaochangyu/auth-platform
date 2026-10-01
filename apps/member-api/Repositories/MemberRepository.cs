@@ -1,4 +1,4 @@
-using System.Data;
+using MemberApi.Domain;
 using MemberApi.Entities;
 using MemberApi.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -60,46 +60,28 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
         dbContext.OutboxMessages.Add(outboxMessage);
     }
 
-    public async Task<(int FailedLoginAttempts, DateTimeOffset? LockoutEndAt)?> RegisterFailedLoginAsync(
+    public async Task<LoginLockoutState?> UpdateLockoutAsync(
         Guid memberId,
-        DateTimeOffset now,
-        int maxAttempts,
-        TimeSpan lockoutDuration,
+        Func<LoginLockoutState, LoginLockoutState> transition,
         CancellationToken cancellationToken)
     {
-        var connection = dbContext.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            await connection.OpenAsync(cancellationToken);
-        }
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            UPDATE members
-            SET failed_login_attempts = CASE WHEN lockout_end_at IS NOT NULL AND lockout_end_at <= @now THEN 1
-                                             ELSE failed_login_attempts + 1 END,
-                lockout_end_at = CASE
-                    WHEN (CASE WHEN lockout_end_at IS NOT NULL AND lockout_end_at <= @now THEN 1
-                               ELSE failed_login_attempts + 1 END) >= @maxAttempts THEN @lockoutEndAt
-                    WHEN lockout_end_at <= @now THEN NULL
-                    ELSE lockout_end_at END
-            WHERE id = @memberId
-            RETURNING failed_login_attempts, lockout_end_at;
-            """;
-        command.Parameters.Add(new NpgsqlParameter("memberId", memberId));
-        command.Parameters.Add(new NpgsqlParameter("maxAttempts", maxAttempts));
-        command.Parameters.Add(new NpgsqlParameter("lockoutEndAt", now + lockoutDuration));
-        command.Parameters.Add(new NpgsqlParameter("now", now));
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        var current = await dbContext.Database
+            .SqlQuery<LoginLockoutState>($"select failed_login_attempts, lockout_end_at from members where id = {memberId} for update")
+            .Cast<LoginLockoutState?>()
+            .SingleOrDefaultAsync(cancellationToken);
+        if (current is null)
         {
             return null;
         }
 
-        var failedLoginAttempts = reader.GetInt32(0);
-        var lockoutEndAt = reader.IsDBNull(1) ? (DateTimeOffset?)null : reader.GetFieldValue<DateTimeOffset>(1);
-        return (failedLoginAttempts, lockoutEndAt);
+        var next = transition(current);
+        await dbContext.Database.ExecuteSqlAsync(
+            $"update members set failed_login_attempts = {next.FailedLoginAttempts}, lockout_end_at = {next.LockoutEndAt} where id = {memberId}",
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return next;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)

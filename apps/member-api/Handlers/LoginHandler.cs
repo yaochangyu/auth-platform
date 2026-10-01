@@ -1,4 +1,5 @@
 using MemberApi.Contracts;
+using MemberApi.Domain;
 using MemberApi.Entities;
 using MemberApi.Repositories;
 using Microsoft.AspNetCore.Identity;
@@ -7,9 +8,6 @@ namespace MemberApi.Handlers;
 
 public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Member> passwordHasher, TimeProvider timeProvider) : ILoginHandler
 {
-    private const int MaxFailedAttempts = 5;
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
-
     public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
         var member = request.Email.Contains('@')
@@ -23,9 +21,7 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
 
         var now = timeProvider.GetUtcNow();
 
-        // 鎖定期間內一律直接拒絕，即使密碼正確也不進行雜湊比對；
-        // 鎖定時效已過期的「重設為全新計數起點」邏輯已下推至 RegisterFailedLoginAsync 的原子 SQL 內處理。
-        if (member.LockoutEndAt is not null && member.LockoutEndAt > now)
+        if (LoginLockoutPolicy.IsLocked(member.Lockout, now))
         {
             return new LoginResult(LoginOutcome.AccountLocked, null, member, member.FailedLoginAttempts, member.LockoutEndAt);
         }
@@ -33,22 +29,20 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
         var passwordVerified = passwordHasher.VerifyHashedPassword(member, member.PasswordHash, request.Password) != PasswordVerificationResult.Failed;
         if (!passwordVerified)
         {
-            // 原子 UPDATE ... RETURNING：避免多個並行請求各自讀取-遞增-寫回造成 Lost Update，
-            // 確保並行密碼錯誤時失敗計數精確累加、鎖定判斷不失準。
-            var (failedLoginAttempts, lockoutEndAt) =
-                (await memberRepository.RegisterFailedLoginAsync(member.Id, now, MaxFailedAttempts, LockoutDuration, cancellationToken))!.Value;
+            // 列鎖內讀取-計算-寫回，避免並行請求造成 Lost Update；規則由 LoginLockoutPolicy 決定。
+            var lockout = (await memberRepository.UpdateLockoutAsync(
+                member.Id, state => LoginLockoutPolicy.RegisterFailure(state, now), cancellationToken))!;
 
-            if (lockoutEndAt is not null && lockoutEndAt > now)
+            if (LoginLockoutPolicy.IsLocked(lockout, now))
             {
-                return new LoginResult(LoginOutcome.AccountLocked, null, member, failedLoginAttempts, lockoutEndAt);
+                return new LoginResult(LoginOutcome.AccountLocked, null, member, lockout.FailedLoginAttempts, lockout.LockoutEndAt);
             }
 
             return new LoginResult(LoginOutcome.InvalidCredentials, null, null);
         }
 
         // 密碼正確：重設失敗計數與鎖定狀態
-        member.FailedLoginAttempts = 0;
-        member.LockoutEndAt = null;
+        member.ApplyLockout(LoginLockoutPolicy.Cleared);
 
         if (member.Status == MemberStatus.Pending)
         {
