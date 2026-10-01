@@ -12,12 +12,12 @@ public static class LoginLockoutPolicy
     public static readonly LoginLockoutState Cleared = new(0, null);
 
     // 鎖定期間內一律視為鎖定，即使密碼正確也不應進行雜湊比對。
-    public static bool IsLocked(LoginLockoutState state, DateTimeOffset now) => state.LockoutEndAt > now;
+    public static bool IsLocked(LoginLockoutState state, DateTimeOffset now) => state.LockoutEndAt is { } end && end > now;
 
     // 鎖定已過期的失敗視為全新計數起點（從 1 開始）；累計達上限時鎖定到 now + LockoutDuration。
     public static LoginLockoutState RegisterFailure(LoginLockoutState state, DateTimeOffset now)
     {
-        var expired = state.LockoutEndAt <= now;
+        var expired = state.LockoutEndAt is { } end && end <= now;
         var attempts = expired ? 1 : state.FailedLoginAttempts + 1;
 
         if (attempts >= MaxFailedAttempts)

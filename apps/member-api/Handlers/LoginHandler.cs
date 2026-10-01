@@ -29,9 +29,8 @@ public class LoginHandler(IMemberRepository memberRepository, IPasswordHasher<Me
         var passwordVerified = passwordHasher.VerifyHashedPassword(member, member.PasswordHash, request.Password) != PasswordVerificationResult.Failed;
         if (!passwordVerified)
         {
-            // 列鎖內讀取-計算-寫回，避免並行請求造成 Lost Update；規則由 LoginLockoutPolicy 決定。
-            var lockout = (await memberRepository.UpdateLockoutAsync(
-                member.Id, state => LoginLockoutPolicy.RegisterFailure(state, now), cancellationToken))!;
+            var lockout = (await memberRepository.RegisterFailedLoginAsync(member.Id, now, cancellationToken))!;
+            member.ApplyLockout(lockout);
 
             if (LoginLockoutPolicy.IsLocked(lockout, now))
             {

@@ -60,10 +60,7 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
         dbContext.OutboxMessages.Add(outboxMessage);
     }
 
-    public async Task<LoginLockoutState?> UpdateLockoutAsync(
-        Guid memberId,
-        Func<LoginLockoutState, LoginLockoutState> transition,
-        CancellationToken cancellationToken)
+    public async Task<LoginLockoutState?> RegisterFailedLoginAsync(Guid memberId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -76,7 +73,7 @@ public class MemberRepository(MemberApiDbContext dbContext) : IMemberRepository
             return null;
         }
 
-        var next = transition(current);
+        var next = LoginLockoutPolicy.RegisterFailure(current, now);
         await dbContext.Database.ExecuteSqlAsync(
             $"update members set failed_login_attempts = {next.FailedLoginAttempts}, lockout_end_at = {next.LockoutEndAt} where id = {memberId}",
             cancellationToken);
