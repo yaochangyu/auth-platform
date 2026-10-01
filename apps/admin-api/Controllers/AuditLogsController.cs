@@ -1,15 +1,15 @@
 using AdminApi.Contracts;
 using AdminApi.Infrastructure;
-using AuthShared.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AdminApi.Controllers;
 
+[ApiController]
 [Route("api/v1/admin/audit-logs")]
 [Authorize(Policy = AuthPolicies.Admin)]
-public class AuditLogsController(AdminApiDbContext dbContext) : ApiControllerBase
+public class AuditLogsController(AdminApiDbContext dbContext) : ControllerBase
 {
     private const int MaxPageSize = 100;
 

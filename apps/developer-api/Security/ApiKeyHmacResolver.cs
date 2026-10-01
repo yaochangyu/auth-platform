@@ -6,7 +6,7 @@ using DeveloperApi.Repositories;
 
 namespace DeveloperApi.Security;
 
-// 以 API Key 找出對應的 API Secret 與身分，交給 AuthShared 的 HMAC 驗證處理常式驗簽。
+// 以 API Key 找出對應的 API Secret 與身分，交給 DeveloperApi 內部的 HMAC 驗證處理常式驗簽。
 public class ApiKeyHmacResolver(ApiKeyRepository repository, TimeProvider timeProvider, ILogger<ApiKeyHmacResolver> logger) : IHmacCredentialResolver
 {
     public async Task<HmacCredential?> ResolveAsync(string apiKey, CancellationToken cancellationToken)
