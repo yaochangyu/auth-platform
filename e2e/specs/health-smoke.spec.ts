@@ -8,17 +8,17 @@ test('會員中心首頁渲染登入介面', async ({ page }) => {
   await expect(page.locator('#password')).toBeVisible()
 })
 
-test('開發者後台首頁渲染', async ({ page }) => {
-  await page.goto('http://developer.1111.com.tw:8092/')
-  await expect(page).toHaveTitle('開發者後台')
-  await expect(page.locator('#app')).not.toBeEmpty()
-})
-
-test('管理後台登入頁渲染', async ({ page }) => {
-  await page.goto('http://admin.1111.com.tw:8093/')
-  await expect(page).toHaveTitle('管理後台')
-  await expect(page.locator('#app')).not.toBeEmpty()
-})
+// 開發者／管理後台為受保護 SPA：未登入時經 Dogfooding PKCE 導向會員中心登入頁
+for (const [name, url] of [
+  ['開發者後台', 'http://developer.1111.com.tw:8092/'],
+  ['管理後台', 'http://admin.1111.com.tw:8093/'],
+]) {
+  test(`${name}未登入導向會員登入頁`, async ({ page }) => {
+    await page.goto(url)
+    await expect(page.getByRole('heading', { name: '會員登入' })).toBeVisible()
+    await expect(page).toHaveURL(/member\.1111\.com\.tw:8080\/login/)
+  })
+}
 
 // 走瀏覽器 page 才吃得到 --host-resolver-rules（request fixture 不會）
 test('AuthServer discovery 端點回應 issuer', async ({ page }) => {
