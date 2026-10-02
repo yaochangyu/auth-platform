@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+import type { MailpitClient } from '../support/mailpit-client'
 import { test, expect } from '../support/test-fixtures'
 import { MemberPage } from '../pages/member-page'
 import { DeveloperPage } from '../pages/developer-page'
@@ -6,7 +8,7 @@ import { newEmail, registerAndActivate, login } from '../support/member-flow'
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
 
 /** 以會員身分登入（SSO Cookie），再進開發者後台 */
-async function signedInDeveloper(page: import('@playwright/test').Page, mailpit: any) {
+async function signedInDeveloper(page: Page, mailpit: MailpitClient) {
   const email = newEmail()
   const member = new MemberPage(page)
   await registerAndActivate(member, mailpit, email)
@@ -47,24 +49,20 @@ test('OAuth 設定儲存', async ({ page, mailpit }) => {
   const { dev, email } = await signedInDeveloper(page, mailpit)
   const { id } = await createApp(dev, email)
   await dev.gotoOAuth(id)
-  await dev.fillOAuthForm({ redirectUri: 'https://example.com/callback' })
-  await page.locator('#scope-openid').check() // 至少需選一個範疇
+  await dev.fillOAuthForm({ redirectUri: 'https://example.com/callback', clientType: 'Confidential' })
   await dev.submitOAuthForm()
   await expect(page.getByText('已儲存 OAuth 設定。')).toBeVisible()
+  // 類型已切為 Confidential：Secret 區塊隨之出現
+  await expect(page.getByRole('button', { name: '產生新 Secret' })).toBeVisible()
 })
 
 test('Client Secret 發行、明文警告與複製', async ({ page, mailpit }) => {
   const { dev, email } = await signedInDeveloper(page, mailpit)
   const { id } = await createApp(dev, email)
   await dev.gotoOAuth(id)
-  // 預設類型可能為 Public；Secret 面板僅 Confidential 顯示，先切換並儲存
-  if (!(await page.getByRole('button', { name: '產生新 Secret' }).isVisible())) {
-    await page.locator('#type-confidential').check()
-    await dev.fillOAuthForm({ redirectUri: 'https://example.com/callback' })
-    await page.locator('#scope-openid').check()
-    await dev.submitOAuthForm()
-    await expect(page.getByText('已儲存 OAuth 設定。')).toBeVisible()
-  }
+  await dev.fillOAuthForm({ redirectUri: 'https://example.com/callback', clientType: 'Confidential' })
+  await dev.submitOAuthForm()
+  await expect(page.getByText('已儲存 OAuth 設定。')).toBeVisible()
   await dev.issueSecret()
   await expect(page.getByRole('alert')).toContainText('請立即複製並妥善保存')
   const secret = await dev.getIssuedSecretText()
@@ -91,6 +89,10 @@ test('API Key 發行：ak_test_ 前綴與明文警告', async ({ page, mailpit }
   await expect(page.getByRole('alert')).toContainText('請立即複製並妥善保存')
   const apiKey = await dev.getIssuedApiKeyText()
   expect(apiKey.startsWith('ak_test_')).toBe(true)
+
+  await dev.copyApiKey()
+  await expect(page.getByRole('button', { name: '已複製' })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiKey)
 
   await dev.dismissApiKey()
   await expect(page.getByRole('alert')).toHaveCount(0)

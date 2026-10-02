@@ -23,8 +23,10 @@ export class DeveloperPage {
   }
   submitAppForm() { return this.page.getByRole('button', { name: '建立', exact: true }).click() }
 
-  async fillOAuthForm(d: { redirectUri: string }) {
+  async fillOAuthForm(d: { redirectUri: string; clientType?: 'Public' | 'Confidential'; scopes?: string[] }) {
+    if (d.clientType) await this.page.locator(d.clientType === 'Confidential' ? '#type-confidential' : '#type-public').check()
     await this.page.locator('#redirectUris').fill(d.redirectUri)
+    for (const s of d.scopes ?? ['openid']) await this.page.locator(`#scope-${s}`).check() // 儲存至少需一個範疇
   }
   submitOAuthForm() { return this.page.getByRole('button', { name: '儲存 OAuth 設定' }).click() }
 
