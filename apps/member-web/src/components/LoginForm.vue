@@ -39,7 +39,7 @@ function onSubmit() {
   <form class="space-y-4" @submit.prevent="onSubmit">
     <div class="space-y-2">
       <Label for="email">Email</Label>
-      <Input id="email" v-model="form.email" type="email" required />
+      <Input id="email" v-model="form.email" type="text" required />
     </div>
 
     <div class="space-y-2">
